@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deadline Reminder Engine</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div id="stars"></div>
+    <div id="stars2"></div>
+    <div id="stars3"></div>
+    <div class="container">
+        <header class="topbar">
+            <nav class="nav-links">
+                <a href="#">HOME</a>
+                <a href="#">FAQS</a>
+                <a href="#">INTEGRATIONS</a>
+                <a href="/docs">DOCS</a>
+                <button class="login-btn">Login</button>
+            </nav>
+            <div class="brand">
+                <h1>AI-Powered<br>Task Reminders</h1>
+                <p>Advanced task management with rule-based email notifications that adapt to your workflow. Stay ahead
+                    of every deadline effortlessly.</p>
+                <div class="hero-btns">
+                    <a href="#task-form" class="primary-btn hero-btn">Start Building</a>
+                    <a href="#tasks-container" class="secondary-btn hero-btn">View Tasks</a>
+                </div>
+            </div>
+        </header>
+
+        <div class="app-grid">
+            <!-- Sidebar / Form -->
+            <aside class="sidebar">
+                <div class="card">
+                    <div class="card-head">
+                        <h2>Add Task</h2>
+                        <p>Set your reminder time and priority.</p>
+                    </div>
+
+                    <form id="task-form">
+                        <div class="form-group">
+                            <label for="title">Task Title</label>
+                            <input type="text" id="title" required placeholder="Project Report">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="description">Description</label>
+                            <textarea id="description" rows="3" placeholder="Explain the task..."></textarea>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="due_date">Notification Time (IST)</label>
+                                <input type="datetime-local" id="due_date" required
+                                    title="When should the email be sent?">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="priority">Priority</label>
+                                <select id="priority">
+                                    <option value="low">Low</option>
+                                    <option value="moderate">Moderate</option>
+                                    <option value="high">High</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="user_email">Your Email</label>
+                            <input type="email" id="user_email" required placeholder="you@example.com">
+                        </div>
+
+                        <button type="submit" class="primary-btn">Create Task</button>
+                    </form>
+                </div>
+
+                <div class="mini-note">
+                    <div class="dot"></div>
+                    <span>Emails are sent automatically via scheduler.</span>
+                </div>
+            </aside>
+
+            <!-- Main Content / List -->
+            <main class="main-content">
+                <div class="list-head">
+                    <h2>Your Tasks</h2>
+                    <span class="sub">Manage reminders & deadlines</span>
+                </div>
+
+                <div id="tasks-container" class="task-list">
+                    <div class="empty-state">
+                        Loading your tasks...
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script src="/static/script.js"></script>
+</body>
+
+</html>
