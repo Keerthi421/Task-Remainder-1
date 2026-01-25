@@ -65,7 +65,7 @@ SMTP_EMAIL=yourgmail@gmail.com
 SMTP_PASSWORD=your_app_password
 ```
 
-**⚠️ Important**: You need a Gmail App Password (not your regular password):
+**Important**: You need a Gmail App Password (not your regular password):
 1. Go to Google Account Settings
 2. Security → 2-Step Verification
 3. App Passwords → Generate new app password
@@ -167,6 +167,3 @@ The scheduler runs in the background, checking every minute for tasks that need 
 
 MIT
 
-## Author
-
-SREE KEERTHI

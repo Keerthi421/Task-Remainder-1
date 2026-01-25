@@ -14,6 +14,11 @@ function notify(message, duration = 3000) {
 
 // Fetch and display tasks
 async function fetchTasks() {
+    const formatDate = (dateString) => {
+        const options = { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true };
+        return new Date(dateString).toLocaleString('en-US', options).replace(',', ' •');
+    };
+
     try {
         const response = await fetch(`${API_BASE}/tasks`);
         const tasks = await response.json();
@@ -29,7 +34,7 @@ async function fetchTasks() {
                     <h3>${task.title}</h3>
                     <p>${task.description || 'No description provided'}</p>
                     <div class="task-meta">
-                        <span>📅 Due: ${new Date(task.due_date).toLocaleString()}</span>
+                        <span>📅 Due: ${formatDate(task.due_date)}</span>
                         <span>🔔 Priority: <strong style="text-transform: capitalize;">${task.priority}</strong></span>
                     </div>
                 </div>
@@ -54,7 +59,8 @@ taskForm.addEventListener('submit', async (e) => {
     const taskData = {
         title: document.getElementById('title').value,
         description: document.getElementById('description').value,
-        due_date: new Date(document.getElementById('due_date').value).toISOString(),
+        // Send local time directly instead of converting to UTC
+        due_date: document.getElementById('due_date').value,
         priority: document.getElementById('priority').value.toLowerCase(),
         user_email: document.getElementById('user_email').value
     };
