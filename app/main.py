@@ -108,15 +108,6 @@ def scheduler_status():
         "jobs": [str(j) for j in scheduler.get_jobs()]
     }
 
-@app.post("/test-email")
-def test_email(to_email: str):
-    from .email_utils import send_email
-    try:
-        send_email(to_email, "Test Email from Task Reminder", "If you see this, your SMTP settings are correct! 🚀")
-        return {"message": "Email sent successfully"}
-    except Exception as e:
-        return {"error": str(e)}
-
 @app.post("/tasks", response_model=schemas.TaskOut)
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db), current_user: schemas.UserOut = Depends(get_current_user)):
     # Override user_email with logged in user's email for security

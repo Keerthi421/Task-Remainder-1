@@ -134,7 +134,14 @@
                     body: body
                 });
 
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    // If response isn't JSON, it's likely a server error page (500)
+                    throw new Error(`Server Error ${res.status}: ${text.substring(0, 100)}...`);
+                }
 
                 if (!res.ok) throw new Error(data.detail || 'Authentication failed');
 
@@ -142,12 +149,12 @@
                     localStorage.setItem('token', data.access_token);
                     window.location.href = '/app';
                 } else if (url.includes('register')) {
-                    // Auto login after register? Or just switch tab
                     alert('Registration successful! Please login.');
                     switchTab('login');
                     document.getElementById('login-email').value = document.getElementById('reg-email').value;
                 }
             } catch (err) {
+                console.error(err);
                 errorElem.textContent = err.message;
                 errorElem.style.display = 'block';
             }
