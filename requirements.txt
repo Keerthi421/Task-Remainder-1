@@ -8,3 +8,4 @@ email-validator
 pytz
 passlib[bcrypt]
 python-jose[cryptography]
+requests

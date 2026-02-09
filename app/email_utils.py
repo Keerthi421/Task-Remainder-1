@@ -1,5 +1,5 @@
-import smtplib
-from email.message import EmailMessage
+import requests
+import json
 import os
 from dotenv import load_dotenv
 
@@ -7,18 +7,40 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def send_email(to_email: str, subject: str, body: str):
-    smtp_email = os.getenv("SMTP_EMAIL")
-    smtp_password = os.getenv("SMTP_PASSWORD")
+    api_key = os.getenv("BREVO_API_KEY")
+    sender_email = os.getenv("SENDER_EMAIL") # Verify this in Brevo dashboard
+    
+    if not api_key or not sender_email:
+        print("LOG: Missing Brevo API credentials. Skipping email.")
+        return
 
-    if not smtp_email or not smtp_password:
-        raise ValueError(f"SMTP credentials missing. EMAIL: {bool(smtp_email)}, PASS: {bool(smtp_password)}")
-
-    msg = EmailMessage()
-    msg["From"] = smtp_email
-    msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.set_content(body)
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(smtp_email, smtp_password)
-        smtp.send_message(msg)
+    url = "https://api.brevo.com/v3/smtp/email"
+    
+    payload = json.dumps({
+        "sender": {
+            "name": "Task Reminder App",
+            "email": sender_email
+        },
+        "to": [
+            {
+                "email": to_email
+            }
+        ],
+        "subject": subject,
+        "textContent": body
+    })
+    
+    headers = {
+        'accept': 'application/json',
+        'api-key': api_key,
+        'content-type': 'application/json'
+    }
+    
+    try:
+        response = requests.request("POST", url, headers=headers, data=payload)
+        if response.status_code == 201:
+            print(f"LOG: Email sent successfully via Brevo to {to_email}")
+        else:
+            print(f"LOG: Failed to send email via Brevo. Status: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        print(f"LOG: Exception sending email via Brevo: {e}")
