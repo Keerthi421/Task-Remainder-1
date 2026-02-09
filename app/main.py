@@ -110,8 +110,9 @@ def scheduler_status():
 
 @app.post("/tasks", response_model=schemas.TaskOut)
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db), current_user: schemas.UserOut = Depends(get_current_user)):
-    # Override user_email with logged in user's email for security
-    task.user_email = current_user.email
+    # If user_email is not provided, default to the current user's email
+    if not task.user_email:
+        task.user_email = current_user.email
     return crud.create_task(db, task)
 
 @app.get("/tasks", response_model=list[schemas.TaskOut])
