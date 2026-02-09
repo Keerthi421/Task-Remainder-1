@@ -2,6 +2,23 @@ const API_BASE = "";
 const taskForm = document.getElementById('task-form');
 const tasksContainer = document.getElementById('tasks-container');
 const toast = document.getElementById('toast');
+const token = localStorage.getItem('token');
+
+if (!token) {
+    window.location.href = '/login';
+}
+
+function getHeaders() {
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+    };
+}
+
+function logout() {
+    localStorage.removeItem('token');
+    window.location.href = '/';
+}
 
 // Show notification
 function notify(message, duration = 3000) {
@@ -20,7 +37,20 @@ async function fetchTasks() {
     };
 
     try {
-        const response = await fetch(`${API_BASE}/tasks`);
+        const response = await fetch(`${API_BASE}/tasks`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.status === 401) {
+            logout();
+            return;
+        }
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API Error ${response.status}: ${errorText}`);
+        }
+
         const tasks = await response.json();
 
         if (tasks.length === 0) {
@@ -48,7 +78,10 @@ async function fetchTasks() {
         `).join('');
     } catch (error) {
         console.error('Error fetching tasks:', error);
-        tasksContainer.innerHTML = '<div style="text-align: center; color: #ef4444; padding: 2rem;">Offline: Check if Backend is running.</div>';
+        tasksContainer.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 2rem;">
+            <h3>Something went wrong</h3>
+            <p>${error.message}</p>
+        </div>`;
     }
 }
 
@@ -68,7 +101,7 @@ taskForm.addEventListener('submit', async (e) => {
     try {
         const response = await fetch(`${API_BASE}/tasks`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify(taskData)
         });
 
@@ -90,7 +123,10 @@ async function deleteTask(id) {
     if (!confirm('Are you sure you want to delete this task?')) return;
 
     try {
-        const response = await fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' });
+        const response = await fetch(`${API_BASE}/tasks/${id}`, {
+            method: 'DELETE',
+            headers: getHeaders()
+        });
         if (response.ok) {
             notify('Task deleted.');
             fetchTasks();
@@ -105,7 +141,7 @@ async function toggleTaskStatus(id, newStatus) {
     try {
         const response = await fetch(`${API_BASE}/tasks/${id}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({ status: newStatus })
         });
         if (response.ok) {

@@ -163,7 +163,4 @@ The scheduler runs in the background, checking every minute for tasks that need 
 - [ ] SendGrid integration for better email delivery
 - [ ] SMS notifications via Twilio
 
-## License
-
-MIT
 

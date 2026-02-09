@@ -6,7 +6,9 @@ class TaskCreate(BaseModel):
     description: str = ""
     due_date: datetime
     priority: str = "low"
-    user_email: EmailStr
+    # user_email is now optional here as we'll get it from token, 
+    # but good to keep optional for backward compatibility or admin
+    user_email: EmailStr | None = None 
 
 class TaskUpdate(BaseModel):
     title: str | None = None
@@ -27,3 +29,22 @@ class TaskOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserOut(BaseModel):
+    id: int
+    email: EmailStr
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    email: str | None = None
