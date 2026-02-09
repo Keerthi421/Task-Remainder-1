@@ -6,7 +6,8 @@ python-dotenv
 apscheduler
 email-validator
 pytz
-passlib[bcrypt]
+passlib==1.7.4
+bcrypt==4.0.1
 python-jose[cryptography]
 requests
 python-multipart
