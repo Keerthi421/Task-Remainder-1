@@ -23,30 +23,13 @@ A FastAPI-based backend system to generate task and medication reminders using d
 - **APScheduler**: Background task scheduling
 - **SMTP**: Email delivery
 
-## Project Structure
-
-```
-deadline-reminder-engine/
-│── app/
-│   │── __init__.py
-│   │── main.py          # FastAPI app and endpoints
-│   │── database.py      # Database configuration
-│   │── models.py        # SQLAlchemy models
-│   │── schemas.py       # Pydantic schemas
-│   │── crud.py          # CRUD operations
-│   │── scheduler.py     # Reminder scheduling logic
-│   │── email_utils.py   # Email sending utility
-│── requirements.txt     # Python dependencies
-│── .env                 # Environment variables
-│── README.md            # This file
-```
 
 ## Setup Instructions
 
 ### 1. Clone the Repository
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Keerthi421/Task-Remainder-1.git
 cd Task-Remainder-1
 ```
 
