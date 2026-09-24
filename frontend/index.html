@@ -4,51 +4,88 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard — Task Reminder</title>
+  <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/static/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 </head>
 <body>
   <canvas id="bg-canvas"></canvas>
 
-  <!-- Sticky nav -->
+  <!-- ── Navbar ── -->
   <nav class="navbar">
     <a class="navbar-brand" href="/">TR</a>
     <ul class="navbar-links">
-      <li><span id="nav-email" style="color:var(--text-dim);font-size:12px;letter-spacing:0.5px;"></span></li>
+      <li><span id="nav-email" style="color:var(--text-dim);font-size:12px;"></span></li>
+      <li><span id="nav-badge" class="nav-badge" style="display:none;">
+        ⚡ <span class="pts" id="nav-pts">0</span> pts · L<span id="nav-lvl">1</span>
+      </span></li>
       <li><button class="logout-link" onclick="logout()">Logout</button></li>
     </ul>
   </nav>
 
+  <!-- ── Stats bar ── -->
+  <div class="stats-bar" id="stats-bar">
+    <div class="stat-tile"><div class="stat-label">Total</div>   <div class="stat-value" id="s-total">—</div></div>
+    <div class="stat-tile"><div class="stat-label">Pending</div> <div class="stat-value" id="s-pend">—</div></div>
+    <div class="stat-tile"><div class="stat-label">Done Today</div><div class="stat-value" id="s-today">—</div></div>
+    <div class="stat-tile"><div class="stat-label">Overdue</div> <div class="stat-value overdue" id="s-over">—</div></div>
+    <div class="stat-tile"><div class="stat-label">Streak 🔥</div><div class="stat-value streak" id="s-streak">—</div></div>
+  </div>
+
   <div class="app-wrap">
     <div class="app-inner">
 
-      <!-- ── Sidebar: form ── -->
+      <!-- ── LEFT: Form ── -->
       <aside>
         <div class="form-card">
-          <div class="form-card-label">
-            <span class="hint-dot"></span> New Reminder
-          </div>
-          <div class="section-heading" style="font-size:1.8rem;margin-bottom:24px;">
+          <div class="form-card-label"><span class="hint-dot"></span> New Reminder</div>
+
+          <!-- Template chips -->
+          <div id="tmpl-bar" class="tmpl-bar" style="display:none;"></div>
+
+          <div class="section-heading" style="font-size:1.6rem;margin-bottom:18px;">
             Add Task.<br><span class="dim">Stay Ahead.</span>
           </div>
 
+          <!-- NL toggle -->
+          <div class="toggle-row">
+            <span class="toggle-label">🧠 Natural Language</span>
+            <label class="toggle"><input type="checkbox" id="nl-toggle" onchange="toggleNL()">
+              <span class="toggle-slider"></span></label>
+          </div>
+
+          <!-- NL input -->
+          <div id="nl-area" style="display:none;margin-bottom:16px;">
+            <div class="form-group">
+              <label for="nl-input">Type your task naturally</label>
+              <textarea id="nl-input" rows="3" placeholder="e.g. Submit chemistry assignment tomorrow at 6pm, it's high priority"></textarea>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-outline btn-sm" onclick="parseNL()" id="nl-btn">✨ Parse</button>
+              <span id="nl-status" style="font-size:12px;color:var(--text-dim);align-self:center;"></span>
+            </div>
+          </div>
+
+          <!-- Regular form -->
           <form id="task-form">
             <div class="form-group">
               <label for="title">Task Title</label>
-              <input type="text" id="title" required placeholder="e.g. Submit project report">
+              <div style="display:flex;gap:8px;">
+                <input type="text" id="title" required placeholder="e.g. Submit project report" style="flex:1;">
+                <button type="button" class="btn btn-outline btn-sm" title="AI priority suggestion" onclick="aiPriority()" id="ai-btn" style="flex-shrink:0;padding:8px 10px;">🎯</button>
+              </div>
             </div>
-
             <div class="form-group">
               <label for="description">Description</label>
-              <textarea id="description" rows="3" placeholder="What needs to be done..."></textarea>
+              <textarea id="description" rows="2" placeholder="What needs to be done..."></textarea>
             </div>
-
             <div class="form-row">
               <div class="form-group">
                 <label for="due_date">Notify At (IST)</label>
-                <input type="datetime-local" id="due_date" required title="When should the email be sent?">
+                <input type="datetime-local" id="due_date" required>
               </div>
               <div class="form-group">
                 <label for="priority">Priority</label>
@@ -59,65 +96,122 @@
                 </select>
               </div>
             </div>
-
-            <button type="submit" class="btn btn-primary btn-block" style="margin-top:8px;">Schedule Reminder</button>
+            <div class="form-group">
+              <label for="tags">Tags</label>
+              <input type="text" id="tags" placeholder="work, personal, urgent (comma-separated)">
+            </div>
+            <div class="form-group">
+              <label for="assigned_to">Assign To (optional)</label>
+              <input type="email" id="assigned_to" placeholder="colleague@email.com">
+            </div>
+            <div class="form-group">
+              <label>Reminder Steps</label>
+              <div class="reminder-grid">
+                <label class="reminder-chip" id="rc-1440"><input type="checkbox" value="1440"> <span class="reminder-chip-label">1 day before</span></label>
+                <label class="reminder-chip" id="rc-360"> <input type="checkbox" value="360">  <span class="reminder-chip-label">6 hrs before</span></label>
+                <label class="reminder-chip" id="rc-60">  <input type="checkbox" value="60">   <span class="reminder-chip-label">1 hr before</span></label>
+                <label class="reminder-chip" id="rc-0">   <input type="checkbox" value="0" checked> <span class="reminder-chip-label">At deadline</span></label>
+              </div>
+            </div>
+            <!-- Sub-tasks builder -->
+            <div class="form-group">
+              <label>Checklist Items</label>
+              <div id="subtask-builder" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+              <button type="button" class="btn-ghost" onclick="addSubtaskField()">+ Add item</button>
+            </div>
+            <button type="submit" id="submit-btn" class="btn btn-primary btn-block" style="margin-top:4px;">Schedule Reminder</button>
           </form>
 
-          <p class="hint-note">
-            <span class="hint-dot"></span>
-            Email is sent automatically to your account address.
-          </p>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+            <button class="btn-ghost" onclick="saveAsTemplate()">💾 Save as Template</button>
+            <label class="import-label" style="flex:unset;padding:6px 12px;border-radius:9999px;">
+              📎 Import CSV <input type="file" accept=".csv" onchange="importCSV(this)">
+            </label>
+          </div>
+          <p class="hint-note"><span class="hint-dot"></span> Emails sent to your account address automatically.</p>
         </div>
       </aside>
 
-      <!-- ── Main: task list ── -->
+      <!-- ── RIGHT: Task list ── -->
       <main>
         <div class="task-list-head">
           <h2 class="section-heading" style="margin-bottom:0;">
             Your Tasks.<br><span class="dim">Upcoming.</span>
           </h2>
-          <span class="task-count" id="task-count">— tasks</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div class="view-toggle">
+              <button class="view-btn active" id="btn-list" onclick="setView('list')">List</button>
+              <button class="view-btn" id="btn-cal" onclick="setView('calendar')">Calendar</button>
+            </div>
+            <span class="task-count" id="task-count">— tasks</span>
+          </div>
         </div>
 
-        <div id="tasks-container" class="task-list" style="margin-top:24px;">
-          <div class="empty-state">
-            <span class="empty-icon">🕓</span>
-            Loading your reminders…
+        <!-- Tag filter -->
+        <div class="tag-filter" id="tag-filter">
+          <span class="tag-chip active" data-tag="all" onclick="filterTag(this)">All</span>
+        </div>
+
+        <!-- List view -->
+        <div id="list-view">
+          <div id="tasks-container" class="task-list">
+            <div class="empty-state"><span class="empty-icon">🕓</span>Loading your reminders…</div>
+          </div>
+        </div>
+
+        <!-- Calendar view -->
+        <div id="cal-view" style="display:none;" class="calendar-wrap">
+          <div class="cal-header">
+            <button class="cal-nav" onclick="calNav(-1)">‹</button>
+            <span class="cal-month" id="cal-month-label"></span>
+            <button class="cal-nav" onclick="calNav(1)">›</button>
+          </div>
+          <div class="cal-grid" id="cal-grid">
+            <div class="cal-day-name">Mon</div><div class="cal-day-name">Tue</div>
+            <div class="cal-day-name">Wed</div><div class="cal-day-name">Thu</div>
+            <div class="cal-day-name">Fri</div><div class="cal-day-name">Sat</div>
+            <div class="cal-day-name">Sun</div>
           </div>
         </div>
       </main>
-
     </div>
   </div>
 
   <div id="toast"></div>
 
+  <!-- Share modal -->
+  <div id="share-modal" class="modal-overlay" style="display:none;" onclick="closeShare(event)">
+    <div class="modal-card">
+      <h2 class="modal-title">Share Task.</h2>
+      <p class="modal-sub">Anyone with this link can view the task details.</p>
+      <div class="url-box">
+        <input type="text" id="share-url" readonly style="font-size:13px;">
+        <button class="btn btn-outline btn-sm" onclick="copyShareUrl()">Copy</button>
+      </div>
+      <div class="modal-close"><button class="btn-ghost" onclick="document.getElementById('share-modal').style.display='none'">Close</button></div>
+    </div>
+  </div>
+
   <script src="/static/script.js"></script>
 
-  <!-- Particle canvas -->
+  <!-- Particle canvas + PWA registration -->
   <script>
-    (function () {
-      const canvas = document.getElementById('bg-canvas');
-      const ctx = canvas.getContext('2d');
-      let stars = [];
-      function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-      function createStars(n) {
-        stars = [];
-        for (let i = 0; i < n; i++)
-          stars.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, r: Math.random()*1.1+0.2, alpha: Math.random()*0.45+0.08, speed: Math.random()*0.2+0.04 });
-      }
-      function draw() {
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        stars.forEach(s => {
-          ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-          ctx.fillStyle=`rgba(245,245,245,${s.alpha})`; ctx.fill();
-          s.y+=s.speed; if(s.y>canvas.height){s.y=0;s.x=Math.random()*canvas.width;}
-        });
-        requestAnimationFrame(draw);
-      }
-      resize(); createStars(180); draw();
-      window.addEventListener('resize', ()=>{ resize(); createStars(180); });
+    (function(){
+      const c=document.getElementById('bg-canvas'), ctx=c.getContext('2d'); let s=[];
+      function r(){c.width=innerWidth;c.height=innerHeight;}
+      function mk(n){s=[];for(let i=0;i<n;i++)s.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.1+.2,a:Math.random()*.4+.06,v:Math.random()*.2+.04});}
+      function dr(){ctx.clearRect(0,0,c.width,c.height);s.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`rgba(245,245,245,${p.a})`;ctx.fill();p.y+=p.v;if(p.y>c.height){p.y=0;p.x=Math.random()*c.width;}});requestAnimationFrame(dr);}
+      r();mk(180);dr();window.addEventListener('resize',()=>{r();mk(180);});
     })();
+    if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+    document.querySelectorAll('.reminder-chip').forEach(chip=>{
+      chip.addEventListener('click',()=>{
+        const inp=chip.querySelector('input');
+        chip.classList.toggle('active', inp.checked);
+      });
+    });
+    // Initialise "at deadline" chip as active
+    document.getElementById('rc-0').classList.add('active');
   </script>
 </body>
 </html>
