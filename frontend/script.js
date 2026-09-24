@@ -4,156 +4,181 @@ const tasksContainer = document.getElementById('tasks-container');
 const toast = document.getElementById('toast');
 const token = localStorage.getItem('token');
 
-if (!token) {
-    window.location.href = '/login';
-}
+if (!token) window.location.href = '/login';
 
 function getHeaders() {
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-    };
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
 }
 
 function logout() {
-    localStorage.removeItem('token');
-    window.location.href = '/';
+  localStorage.removeItem('token');
+  window.location.href = '/';
 }
 
-// Show notification
-function notify(message, duration = 3000) {
-    toast.textContent = message;
-    toast.style.display = 'block';
-    setTimeout(() => {
-        toast.style.display = 'none';
-    }, duration);
+/* ── Toast ── */
+let toastTimer;
+function notify(message, duration = 3200) {
+  clearTimeout(toastTimer);
+  toast.textContent = message;
+  toast.style.display = 'block';
+  toastTimer = setTimeout(() => { toast.style.display = 'none'; }, duration);
 }
 
-// Fetch and display tasks
+/* ── Fetch current user (to display email in nav) ── */
+async function fetchMe() {
+  try {
+    const res = await fetch(`${API_BASE}/users/me`, { headers: getHeaders() });
+    if (res.status === 401) { logout(); return; }
+    if (res.ok) {
+      const user = await res.json();
+      const el = document.getElementById('nav-email');
+      if (el) el.textContent = user.email;
+    }
+  } catch (_) {}
+}
+
+/* ── Date formatter ── */
+function fmtDate(dateString) {
+  return new Date(dateString).toLocaleString('en-IN', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true
+  }).replace(',', ' ·');
+}
+
+/* ── Render tasks ── */
+function renderPriorityTag(priority) {
+  return `<span class="meta-tag priority-${priority}">${priority}</span>`;
+}
+
+function renderStatusTag(status) {
+  const icon = status === 'completed' ? '✓' : '⏳';
+  return `<span class="meta-tag">${icon} ${status}</span>`;
+}
+
+/* ── Fetch and display tasks ── */
 async function fetchTasks() {
-    const formatDate = (dateString) => {
-        const options = { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true };
-        return new Date(dateString).toLocaleString('en-US', options).replace(',', ' •');
-    };
+  try {
+    const response = await fetch(`${API_BASE}/tasks`, { headers: getHeaders() });
+    if (response.status === 401) { logout(); return; }
+    if (!response.ok) throw new Error(`API Error ${response.status}`);
 
-    try {
-        const response = await fetch(`${API_BASE}/tasks`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+    const tasks = await response.json();
 
-        if (response.status === 401) {
-            logout();
-            return;
-        }
+    // Update count badge
+    const countEl = document.getElementById('task-count');
+    if (countEl) countEl.textContent = `${tasks.length} task${tasks.length !== 1 ? 's' : ''}`;
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`API Error ${response.status}: ${errorText}`);
-        }
-
-        const tasks = await response.json();
-
-        if (tasks.length === 0) {
-            tasksContainer.innerHTML = '<div style="text-align: center; color: var(--text-dim); padding: 2rem;">No tasks found. Add one to get started!</div>';
-            return;
-        }
-
-        tasksContainer.innerHTML = tasks.sort((a, b) => new Date(a.due_date) - new Date(b.due_date)).map(task => `
-            <div class="task-card ${task.priority}">
-                <div class="task-info">
-                    <h3>${task.title}</h3>
-                    <p>${task.description || 'No description provided'}</p>
-                    <div class="task-meta">
-                        <span>📅 Due: ${formatDate(task.due_date)}</span>
-                        <span>🔔 Priority: <strong style="text-transform: capitalize;">${task.priority}</strong></span>
-                    </div>
-                </div>
-                <div class="task-actions">
-                    <button class="action-btn" onclick="toggleTaskStatus(${task.id}, '${task.status === 'pending' ? 'completed' : 'pending'}')">
-                        ${task.status === 'pending' ? '✔️' : '🔄'}
-                    </button>
-                    <button class="action-btn delete" onclick="deleteTask(${task.id})">🗑️</button>
-                </div>
-            </div>
-        `).join('');
-    } catch (error) {
-        console.error('Error fetching tasks:', error);
-        tasksContainer.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 2rem;">
-            <h3>Something went wrong</h3>
-            <p>${error.message}</p>
+    if (tasks.length === 0) {
+      tasksContainer.innerHTML = `
+        <div class="empty-state">
+          <span class="empty-icon">📋</span>
+          No tasks yet. Add one on the left to get started.
         </div>`;
+      return;
     }
+
+    const sorted = [...tasks].sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+
+    tasksContainer.innerHTML = sorted.map(task => `
+      <div class="task-card ${task.priority}${task.status === 'completed' ? ' completed' : ''}">
+        <div class="task-info">
+          <p class="task-title">${escHtml(task.title)}</p>
+          ${task.description ? `<p class="task-desc">${escHtml(task.description)}</p>` : ''}
+          <div class="task-meta">
+            <span class="meta-tag">📅 ${fmtDate(task.due_date)}</span>
+            ${renderPriorityTag(task.priority)}
+            ${renderStatusTag(task.status)}
+          </div>
+        </div>
+        <div class="task-actions">
+          <button class="icon-btn" title="${task.status === 'pending' ? 'Mark complete' : 'Mark pending'}"
+            onclick="toggleTaskStatus(${task.id}, '${task.status === 'pending' ? 'completed' : 'pending'}')">
+            ${task.status === 'pending' ? '✔' : '↺'}
+          </button>
+          <button class="icon-btn delete" title="Delete" onclick="deleteTask(${task.id})">✕</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Error fetching tasks:', error);
+    tasksContainer.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-icon">⚠</span>
+        ${escHtml(error.message)}
+      </div>`;
+  }
 }
 
-// Create new task
+/* ── HTML escaping ── */
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/* ── Create task ── */
 taskForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  const submitBtn = taskForm.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Scheduling…';
 
-    const taskData = {
-        title: document.getElementById('title').value,
-        description: document.getElementById('description').value,
-        // Send local time directly instead of converting to UTC
-        due_date: document.getElementById('due_date').value,
-        priority: document.getElementById('priority').value.toLowerCase(),
-        user_email: document.getElementById('user_email').value
-    };
+  const taskData = {
+    title:       document.getElementById('title').value,
+    description: document.getElementById('description').value,
+    due_date:    document.getElementById('due_date').value,
+    priority:    document.getElementById('priority').value
+  };
 
-    try {
-        const response = await fetch(`${API_BASE}/tasks`, {
-            method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify(taskData)
-        });
+  try {
+    const response = await fetch(`${API_BASE}/tasks`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(taskData)
+    });
 
-        if (response.ok) {
-            notify('Notification scheduled successfully!');
-            taskForm.reset();
-            fetchTasks();
-        } else {
-            const err = await response.json();
-            notify('Error: ' + (err.detail || 'Failed to create task'));
-        }
-    } catch (error) {
-        notify('Network error. Is the backend running?');
+    if (response.ok) {
+      notify('✓ Reminder scheduled successfully!');
+      taskForm.reset();
+      fetchTasks();
+    } else {
+      const err = await response.json().catch(() => ({ detail: 'Failed to create task' }));
+      notify('Error: ' + (err.detail || 'Failed to create task'));
     }
+  } catch (_) {
+    notify('Network error. Is the backend running?');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Schedule Reminder';
+  }
 });
 
-// Delete task
+/* ── Delete task ── */
 async function deleteTask(id) {
-    if (!confirm('Are you sure you want to delete this task?')) return;
-
-    try {
-        const response = await fetch(`${API_BASE}/tasks/${id}`, {
-            method: 'DELETE',
-            headers: getHeaders()
-        });
-        if (response.ok) {
-            notify('Task deleted.');
-            fetchTasks();
-        }
-    } catch (error) {
-        notify('Error deleting task.');
-    }
+  if (!confirm('Delete this reminder?')) return;
+  try {
+    const res = await fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE', headers: getHeaders() });
+    if (res.ok) { notify('Reminder deleted.'); fetchTasks(); }
+    else notify('Could not delete reminder.');
+  } catch (_) { notify('Network error.'); }
 }
 
-// Toggle status
+/* ── Toggle status ── */
 async function toggleTaskStatus(id, newStatus) {
-    try {
-        const response = await fetch(`${API_BASE}/tasks/${id}`, {
-            method: 'PATCH',
-            headers: getHeaders(),
-            body: JSON.stringify({ status: newStatus })
-        });
-        if (response.ok) {
-            notify(`Task marked as ${newStatus}!`);
-            fetchTasks();
-        }
-    } catch (error) {
-        notify('Error updating task.');
-    }
+  try {
+    const res = await fetch(`${API_BASE}/tasks/${id}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (res.ok) { notify(`Marked as ${newStatus}.`); fetchTasks(); }
+    else notify('Could not update status.');
+  } catch (_) { notify('Network error.'); }
 }
 
-// Initial fetch
+/* ── Init ── */
+fetchMe();
 fetchTasks();
-// Refresh every 30 seconds
 setInterval(fetchTasks, 30000);

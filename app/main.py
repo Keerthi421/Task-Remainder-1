@@ -108,36 +108,35 @@ def scheduler_status():
         "jobs": [str(j) for j in scheduler.get_jobs()]
     }
 
+@app.get("/users/me", response_model=schemas.UserOut)
+def get_me(current_user: schemas.UserOut = Depends(get_current_user)):
+    return current_user
+
 @app.post("/tasks", response_model=schemas.TaskOut)
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db), current_user: schemas.UserOut = Depends(get_current_user)):
-    # If user_email is not provided, default to the current user's email
-    if not task.user_email:
-        task.user_email = current_user.email
-    return crud.create_task(db, task)
+    return crud.create_task(db, task, current_user.email)
 
 @app.get("/tasks", response_model=list[schemas.TaskOut])
 def list_tasks(db: Session = Depends(get_db), current_user: schemas.UserOut = Depends(get_current_user)):
-    # In a real app we might filter by current_user.email here
-    # return crud.get_tasks_by_user(db, current_user.email)
-    return crud.get_tasks(db)
+    return crud.get_tasks(db, current_user.email)
 
 @app.get("/tasks/{task_id}", response_model=schemas.TaskOut)
 def get_task(task_id: int, db: Session = Depends(get_db), current_user: schemas.UserOut = Depends(get_current_user)):
-    task = crud.get_task(db, task_id)
+    task = crud.get_task(db, task_id, current_user.email)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
 @app.patch("/tasks/{task_id}", response_model=schemas.TaskOut)
 def update_task(task_id: int, upd: schemas.TaskUpdate, db: Session = Depends(get_db), current_user: schemas.UserOut = Depends(get_current_user)):
-    task = crud.update_task(db, task_id, upd)
+    task = crud.update_task(db, task_id, upd, current_user.email)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
 @app.delete("/tasks/{task_id}")
 def delete_task(task_id: int, db: Session = Depends(get_db), current_user: schemas.UserOut = Depends(get_current_user)):
-    ok = crud.delete_task(db, task_id)
+    ok = crud.delete_task(db, task_id, current_user.email)
     if not ok:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"message": "Deleted successfully"}

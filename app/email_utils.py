@@ -6,13 +6,14 @@ from dotenv import load_dotenv
 # Ensure environment variables are loaded
 load_dotenv()
 
-def send_email(to_email: str, subject: str, body: str):
+def send_email(to_email: str, subject: str, body: str) -> bool:
+    """Send an email via Brevo. Returns True only if Brevo accepted it."""
     api_key = os.getenv("BREVO_API_KEY")
     sender_email = os.getenv("SENDER_EMAIL") # Verify this in Brevo dashboard
-    
+
     if not api_key or not sender_email:
         print("LOG: Missing Brevo API credentials. Skipping email.")
-        return
+        return False
 
     url = "https://api.brevo.com/v3/smtp/email"
     
@@ -37,10 +38,11 @@ def send_email(to_email: str, subject: str, body: str):
     }
     
     try:
-        response = requests.request("POST", url, headers=headers, data=payload)
+        response = requests.request("POST", url, headers=headers, data=payload, timeout=15)
         if response.status_code == 201:
             print(f"LOG: Email sent successfully via Brevo to {to_email}")
-        else:
-            print(f"LOG: Failed to send email via Brevo. Status: {response.status_code}, Response: {response.text}")
+            return True
+        print(f"LOG: Failed to send email via Brevo. Status: {response.status_code}, Response: {response.text}")
     except Exception as e:
         print(f"LOG: Exception sending email via Brevo: {e}")
+    return False

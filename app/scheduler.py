@@ -55,9 +55,12 @@ Description:
 Scheduled for (IST): {task_time.strftime('%Y-%m-%d %H:%M:%S')}
 Sent at (IST): {now_ist.strftime('%Y-%m-%d %H:%M:%S')}
                     """
-                    send_email(task.user_email, subject, body)
+                    if not send_email(task.user_email, subject, body):
+                        # Leave the task pending so the next run retries it
+                        logger.warning(f"Email not sent for '{task.title}'; will retry next run.")
+                        continue
                     logger.info(f"SUCCESS: Email sent for '{task.title}'.")
-                    
+
                     # Mark as completed
                     task.status = "completed"
                     task.last_reminded_at = now_ist
