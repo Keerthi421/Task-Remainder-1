@@ -110,6 +110,7 @@ def get_profile_out(db: Session, email: str) -> schemas.ProfileOut:
         weekly_digest_enabled=bool(p.weekly_digest_enabled),
         phone=p.phone,
         whatsapp_phone=p.whatsapp_phone,
+        slack_webhook_url=p.slack_webhook_url,
     )
 
 def update_profile(db: Session, email: str, upd: schemas.ProfileUpdate) -> schemas.ProfileOut:
@@ -120,8 +121,14 @@ def update_profile(db: Session, email: str, upd: schemas.ProfileUpdate) -> schem
         profile.phone = upd.phone or None
     if upd.whatsapp_phone is not None:
         profile.whatsapp_phone = upd.whatsapp_phone or None
+    if upd.slack_webhook_url is not None:
+        profile.slack_webhook_url = upd.slack_webhook_url or None
     db.commit()
     return get_profile_out(db, email)
+
+def get_task_by_id(db: Session, task_id: int) -> models.Task | None:
+    """Fetch a task without ownership check — used only for snooze (token-validated elsewhere)."""
+    return db.query(models.Task).filter(models.Task.id == task_id).first()
 
 # ── Tasks ─────────────────────────────────────────────────────────────────────
 

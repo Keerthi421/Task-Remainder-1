@@ -1,3 +1,5 @@
+import hmac as _hmac
+import hashlib
 import json
 import os
 from html import escape
@@ -5,6 +7,32 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+# ── Snooze token ───────────────────────────────────────────────────────────────
+
+def make_snooze_token(task_id: int, user_email: str) -> str:
+    """HMAC-signed token that authorises a one-click snooze from an email link."""
+    secret = os.getenv("SECRET_KEY", "")
+    msg = f"snooze:{task_id}:{user_email}"
+    return _hmac.new(secret.encode(), msg.encode(), hashlib.sha256).hexdigest()
+
+
+# ── Slack webhook ──────────────────────────────────────────────────────────────
+
+def send_slack_webhook(webhook_url: str, message: str) -> bool:
+    """POST a plain-text message to a Slack incoming webhook URL."""
+    if not webhook_url:
+        return False
+    try:
+        resp = requests.post(webhook_url, json={"text": message}, timeout=10)
+        if resp.status_code == 200:
+            print(f"LOG: Slack webhook sent")
+            return True
+        print(f"LOG: Slack webhook error {resp.status_code}: {resp.text[:100]}")
+    except Exception as e:
+        print(f"LOG: Slack webhook exception: {e}")
+    return False
 
 # ── Core send ──────────────────────────────────────────────────────────────────
 
@@ -99,8 +127,25 @@ def send_whatsapp(to_phone: str, message: str) -> bool:
 
 # ── Reminder email ─────────────────────────────────────────────────────────────
 
+def _snooze_buttons_html(task_id: int, base_url: str | None, token: str | None) -> str:
+    if not base_url or not token:
+        return ""
+    btn_style = ("display:inline-block;background:#f5f5f5;color:#080808;"
+                 "text-decoration:none;font-size:12px;font-weight:700;"
+                 "letter-spacing:.8px;text-transform:uppercase;"
+                 "padding:10px 20px;border-radius:8px;margin-right:8px;")
+    url1h  = f"{base_url}/tasks/{task_id}/snooze?hours=1&token={token}"
+    url1d  = f"{base_url}/tasks/{task_id}/snooze?hours=24&token={token}"
+    return (f"<p style='margin:0 0 12px;font-size:12px;color:#888;'>Not ready yet? Snooze it:</p>"
+            f"<a href='{url1h}' style='{btn_style}'>⏱ Snooze 1 hour</a>"
+            f"<a href='{url1d}' style='{btn_style}'>⏰ Snooze 1 day</a>"
+            f"<br style='margin-bottom:16px;'>")
+
+
 def send_reminder_email(task, task_time_str: str, now_str: str,
-                        override_email: str | None = None) -> bool:
+                        override_email: str | None = None,
+                        snooze_base_url: str | None = None,
+                        snooze_token: str | None = None) -> bool:
     subject  = f"🔔 Reminder: {task.title}"
     priority_emoji = {"high": "🔴", "moderate": "🟡", "low": "🟢"}.get(task.priority, "⚪")
 
@@ -150,6 +195,7 @@ def send_reminder_email(task, task_time_str: str, now_str: str,
     {sub_items}
   </div>
   <div style='padding:20px 40px 32px;border-top:1px solid #f0f0f0;'>
+    {_snooze_buttons_html(task.id, snooze_base_url, snooze_token)}
     <p style='margin:0;font-size:12px;color:#bbb;'>Sent at {now_str} · Task Reminder App</p>
   </div>
 </div>

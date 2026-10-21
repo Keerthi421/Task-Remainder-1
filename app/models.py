@@ -64,6 +64,7 @@ class UserProfile(Base):
     weekly_digest_enabled = Column(Integer, default=1)   # boolean
     phone                 = Column(String, nullable=True) # for SMS (Twilio)
     whatsapp_phone        = Column(String, nullable=True) # E.164 e.g. +919876543210
+    slack_webhook_url     = Column(String, nullable=True) # Slack incoming webhook URL
 
 
 class TaskCollaborator(Base):

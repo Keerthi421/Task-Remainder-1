@@ -145,11 +145,13 @@ class ProfileOut(BaseModel):
     weekly_digest_enabled: bool
     phone:                 str | None = None
     whatsapp_phone:        str | None = None
+    slack_webhook_url:     str | None = None
 
 class ProfileUpdate(BaseModel):
     weekly_digest_enabled: bool | None = None
     phone:                 str | None  = None
     whatsapp_phone:        str | None  = None
+    slack_webhook_url:     str | None  = None
 
 # ── Collaborators ─────────────────────────────────────────────────────────────
 

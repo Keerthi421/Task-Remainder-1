@@ -155,6 +155,11 @@
               <input type="tel" id="wa-phone" class="setting-input" placeholder="+91XXXXXXXXXX"
                      onblur="saveWhatsApp()">
             </div>
+            <div class="setting-row">
+              <span class="setting-label">💬 Slack webhook</span>
+              <input type="url" id="slack-webhook" class="setting-input"
+                     placeholder="https://hooks.slack.com/…" onblur="saveSlack()">
+            </div>
           </div>
         </div>
       </aside>
@@ -167,11 +172,29 @@
           </h2>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <div class="view-toggle">
-              <button class="view-btn active" id="btn-list" onclick="setView('list')">List</button>
-              <button class="view-btn" id="btn-cal" onclick="setView('calendar')">Calendar</button>
+              <button class="view-btn active" id="btn-list"      onclick="setView('list')">List</button>
+              <button class="view-btn"        id="btn-cal"       onclick="setView('calendar')">Calendar</button>
+              <button class="view-btn"        id="btn-analytics" onclick="setView('analytics')">Analytics</button>
             </div>
             <span class="task-count" id="task-count">— tasks</span>
           </div>
+        </div>
+
+        <!-- Search & filter bar -->
+        <div class="search-filter-bar" id="search-filter-bar">
+          <input type="search" id="search-input" class="search-input"
+                 placeholder="Search tasks…" oninput="renderTasks()">
+          <select id="filter-status" class="filter-select" onchange="renderTasks()">
+            <option value="all">All status</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Done</option>
+          </select>
+          <select id="filter-priority" class="filter-select" onchange="renderTasks()">
+            <option value="all">Any priority</option>
+            <option value="high">High</option>
+            <option value="moderate">Moderate</option>
+            <option value="low">Low</option>
+          </select>
         </div>
 
         <!-- Tag filter -->
@@ -191,6 +214,9 @@
             <div class="empty-state"><span class="empty-icon">🕓</span>Loading your reminders…</div>
           </div>
         </div>
+
+        <!-- Analytics view -->
+        <div id="analytics-view" style="display:none;" class="analytics-view"></div>
 
         <!-- Calendar view -->
         <div id="cal-view" style="display:none;" class="calendar-wrap">

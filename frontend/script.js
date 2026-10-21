@@ -278,6 +278,13 @@ function getFilteredTasks() {
   if (calFilterDate) {
     tasks = tasks.filter(t => t.due_date && t.due_date.startsWith(calFilterDate));
   }
+  // Search & filter bar
+  const q  = ($('search-input')?.value || '').toLowerCase().trim();
+  const fs = $('filter-status')?.value   || 'all';
+  const fp = $('filter-priority')?.value || 'all';
+  if (q)  tasks = tasks.filter(t => (t.title + ' ' + (t.description||'')).toLowerCase().includes(q));
+  if (fs !== 'all') tasks = tasks.filter(t => t.status   === fs);
+  if (fp !== 'all') tasks = tasks.filter(t => t.priority === fp);
   return tasks.sort((a,b) => a.sort_order - b.sort_order || new Date(a.due_date) - new Date(b.due_date));
 }
 
@@ -479,11 +486,15 @@ function copyShareUrl() {
 /* ── View toggle ─────────────────────────────────────────────── */
 function setView(v) {
   currentView = v;
-  $('list-view').style.display = v === 'list' ? 'block' : 'none';
-  $('cal-view').style.display  = v === 'calendar' ? 'block' : 'none';
-  $('btn-list').classList.toggle('active', v === 'list');
-  $('btn-cal').classList.toggle('active', v === 'calendar');
-  if (v === 'calendar') renderCalendar();
+  $('list-view').style.display       = v === 'list'      ? 'block' : 'none';
+  $('cal-view').style.display        = v === 'calendar'  ? 'block' : 'none';
+  $('analytics-view').style.display  = v === 'analytics' ? 'block' : 'none';
+  $('search-filter-bar').style.display = v === 'list' ? 'flex' : 'none';
+  $('btn-list').classList.toggle('active',      v === 'list');
+  $('btn-cal').classList.toggle('active',       v === 'calendar');
+  $('btn-analytics').classList.toggle('active', v === 'analytics');
+  if (v === 'calendar')  renderCalendar();
+  if (v === 'analytics') renderAnalytics();
 }
 
 /* ── Calendar ────────────────────────────────────────────────── */
@@ -739,6 +750,8 @@ async function loadProfileSettings() {
     if (toggle) toggle.checked = !!p.weekly_digest_enabled;
     const wa = $('wa-phone');
     if (wa && p.whatsapp_phone) wa.value = p.whatsapp_phone;
+    const sl = $('slack-webhook');
+    if (sl && p.slack_webhook_url) sl.value = p.slack_webhook_url;
   } catch(_) {}
 }
 
@@ -831,6 +844,103 @@ $('edit-form').addEventListener('submit', async e => {
     }
   } catch(_) { notify('Network error.'); }
 });
+
+/* ── Analytics ───────────────────────────────────────────────── */
+function renderAnalytics() {
+  const view = $('analytics-view');
+  if (!view) return;
+
+  const total     = allTasks.length;
+  const completed = allTasks.filter(t => t.status === 'completed').length;
+  const pending   = allTasks.filter(t => t.status === 'pending').length;
+  const overdue   = allTasks.filter(t => isOverdue(t)).length;
+  const rate      = total ? Math.round(completed / total * 100) : 0;
+
+  const byPri   = { high: 0, moderate: 0, low: 0 };
+  const donePri = { high: 0, moderate: 0, low: 0 };
+  allTasks.forEach(t => {
+    byPri[t.priority]   = (byPri[t.priority]   || 0) + 1;
+    if (t.status === 'completed') donePri[t.priority] = (donePri[t.priority] || 0) + 1;
+  });
+
+  // Next 14 days heatmap
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dayCounts = {};
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(today); d.setDate(d.getDate() + i);
+    dayCounts[d.toISOString().slice(0,10)] = 0;
+  }
+  allTasks.filter(t => t.status === 'pending').forEach(t => {
+    const key = new Date(t.due_date).toISOString().slice(0,10);
+    if (key in dayCounts) dayCounts[key]++;
+  });
+  const maxDay = Math.max(1, ...Object.values(dayCounts));
+
+  const priColors = { high: 'var(--high)', moderate: 'var(--moderate)', low: 'var(--low)' };
+
+  view.innerHTML = `
+    <div class="an-summary">
+      <div class="an-card"><div class="an-val">${total}</div><div class="an-lbl">Total</div></div>
+      <div class="an-card"><div class="an-val">${rate}%</div><div class="an-lbl">Done</div></div>
+      <div class="an-card"><div class="an-val" style="color:var(--moderate);">${pending}</div><div class="an-lbl">Pending</div></div>
+      <div class="an-card"><div class="an-val" style="color:var(--high);">${overdue}</div><div class="an-lbl">Overdue</div></div>
+    </div>
+
+    <div class="an-section">
+      <div class="an-title">Priority Breakdown</div>
+      ${['high','moderate','low'].map(p => {
+        const cnt = byPri[p] || 0;
+        const pct = total ? Math.round(cnt/total*100) : 0;
+        const done = donePri[p] || 0;
+        return `<div class="an-bar-row">
+          <span class="an-bar-lbl">${p}</span>
+          <div class="an-bar-track">
+            <div class="an-bar-fill" style="width:${pct}%;background:${priColors[p]};"></div>
+          </div>
+          <span class="an-bar-stat">${cnt} · ${cnt ? Math.round(done/cnt*100) : 0}% done</span>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div class="an-section">
+      <div class="an-title">Next 14 Days — Pending tasks per day</div>
+      <div class="an-heatmap">
+        ${Object.entries(dayCounts).map(([date, cnt]) => {
+          const lbl = new Date(date + 'T12:00:00').toLocaleDateString('en-IN',{month:'short',day:'numeric'});
+          const h   = cnt ? Math.round(cnt / maxDay * 100) : 0;
+          return `<div class="an-heat-cell" title="${lbl}: ${cnt} task${cnt!==1?'s':''}">
+            <div class="an-heat-bar" style="height:${Math.max(4,h)}%;"></div>
+            <div class="an-heat-lbl">${lbl.replace(' ','<br>')}</div>
+            <div class="an-heat-cnt">${cnt||''}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="an-section">
+      <div class="an-title">Overall Completion — ${completed} of ${total} tasks</div>
+      <div class="an-progress-track">
+        <div class="an-progress-fill" style="width:${rate}%"></div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-dim);">${rate}% complete</div>
+    </div>`;
+}
+
+/* ── Slack webhook setting ────────────────────────────────────── */
+async function saveSlack() {
+  const url = ($('slack-webhook').value || '').trim();
+  if (url && !url.startsWith('https://')) {
+    notify('Slack webhook must be an https:// URL');
+    return;
+  }
+  try {
+    const r = await fetch(`${API}/users/profile`, {
+      method: 'PATCH', headers: hdr(),
+      body: JSON.stringify({ slack_webhook_url: url || null })
+    });
+    if (r.ok) notify(url ? '✓ Slack webhook saved' : 'Slack webhook cleared');
+  } catch(_) { notify('Failed to save.'); }
+}
 
 /* ── Init ────────────────────────────────────────────────────── */
 $('tz-label').textContent = `(${TZ})`;

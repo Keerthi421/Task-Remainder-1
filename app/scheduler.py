@@ -9,11 +9,15 @@ from sqlalchemy.orm import Session
 
 from .database import SessionLocal
 from .models import Task, User, UserProfile
-from .email_utils import send_reminder_email, send_weekly_digest, send_sms, send_whatsapp
+from .email_utils import (send_reminder_email, send_weekly_digest,
+                          send_sms, send_whatsapp, send_slack_webhook,
+                          make_snooze_token)
 from .recurrence import get_tz, localize
 from . import crud
 
 load_dotenv()
+APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8001")
+
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s",
                     handlers=[logging.StreamHandler(sys.stdout)])
@@ -63,8 +67,12 @@ def _process_task(db: Session, task: Task):
         if not (milestone - 1 < minutes_until <= milestone + 1):
             continue
 
+        snooze_tok = make_snooze_token(task.id, task.user_email)
         try:
-            ok = send_reminder_email(task, task_time_str, now_str, override_email=notify_to)
+            ok = send_reminder_email(task, task_time_str, now_str,
+                                     override_email=notify_to,
+                                     snooze_base_url=APP_BASE_URL,
+                                     snooze_token=snooze_tok)
         except Exception as e:
             logger.error(f"Email error for '{task.title}': {e}", exc_info=True)
             ok = False
@@ -93,6 +101,10 @@ def _process_task(db: Session, task: Task):
                 send_sms(profile.phone, msg)
             if profile.whatsapp_phone:
                 send_whatsapp(profile.whatsapp_phone, msg)
+            if profile.slack_webhook_url:
+                send_slack_webhook(profile.slack_webhook_url,
+                                   f"🔔 *Task Reminder*: {task.title}\n"
+                                   f"Due: {task_time_str} | Priority: {task.priority.upper()}")
 
         if milestone == 0:
             if task.assigned_to and task.assigned_to != notify_to:

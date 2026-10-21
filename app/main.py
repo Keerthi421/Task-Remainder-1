@@ -1,4 +1,6 @@
 import csv
+import hmac as _hmac
+import hashlib
 import io
 import textwrap
 from datetime import datetime, timedelta
@@ -313,6 +315,40 @@ def export_task_ics(task_id: int, db: Session = Depends(get_db),
         media_type="text/calendar",
         headers={"Content-Disposition": f'attachment; filename="{safe_title}.ics"'}
     )
+
+# ── Snooze (one-click from email) ────────────────────────────────────────────
+
+@app.get("/tasks/{task_id}/snooze")
+def snooze_task(task_id: int, hours: int = 1, token: str = "",
+                db: Session = Depends(get_db)):
+    """Advance a task's due_date without requiring JWT auth.
+    The `token` is an HMAC over (task_id, user_email) with the app secret."""
+    from .email_utils import make_snooze_token
+    task = crud.get_task_by_id(db, task_id)
+    if not task:
+        raise HTTPException(404, "Task not found")
+    expected = make_snooze_token(task.id, task.user_email)
+    if not _hmac.compare_digest(token, expected):
+        raise HTTPException(403, "Invalid snooze token")
+    hours = max(1, min(int(hours), 168))  # 1 h – 7 days
+    task.due_date = task.due_date + timedelta(hours=hours)
+    task.reminders_sent = ""  # reset so reminders fire again at new time
+    db.commit()
+    label = "1 hour" if hours == 1 else f"{hours} hours" if hours < 24 else (
+        "1 day" if hours == 24 else f"{hours // 24} days")
+    html = f"""<!DOCTYPE html>
+<html><body style='margin:0;padding:0;background:#f4f4f5;font-family:Inter,Arial,sans-serif;'>
+<div style='max-width:440px;margin:80px auto;background:#fff;border-radius:12px;overflow:hidden;
+            box-shadow:0 4px 20px rgba(0,0,0,.08);text-align:center;padding:48px 40px;'>
+  <div style='font-size:48px;margin-bottom:20px;'>⏱</div>
+  <h1 style='font-size:22px;font-weight:900;color:#111;margin-bottom:8px;'>Snoozed!</h1>
+  <p style='font-size:15px;color:#555;margin:0;'>
+    <strong>{task.title}</strong> has been pushed back by <strong>{label}</strong>.
+    You'll be reminded at the new time.</p>
+  <p style='margin-top:32px;font-size:12px;color:#bbb;'>You can close this tab.</p>
+</div></body></html>"""
+    return Response(content=html, media_type="text/html")
+
 
 # ── Collaborators ─────────────────────────────────────────────────────────────
 
