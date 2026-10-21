@@ -146,12 +146,19 @@ class ProfileOut(BaseModel):
     phone:                 str | None = None
     whatsapp_phone:        str | None = None
     slack_webhook_url:     str | None = None
+    discord_webhook_url:   str | None = None
 
 class ProfileUpdate(BaseModel):
     weekly_digest_enabled: bool | None = None
     phone:                 str | None  = None
     whatsapp_phone:        str | None  = None
     slack_webhook_url:     str | None  = None
+    discord_webhook_url:   str | None  = None
+
+class PushSubscribeRequest(BaseModel):
+    endpoint: str
+    p256dh:   str
+    auth:     str
 
 # ── Collaborators ─────────────────────────────────────────────────────────────
 

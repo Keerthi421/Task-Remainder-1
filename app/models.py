@@ -65,6 +65,17 @@ class UserProfile(Base):
     phone                 = Column(String, nullable=True) # for SMS (Twilio)
     whatsapp_phone        = Column(String, nullable=True) # E.164 e.g. +919876543210
     slack_webhook_url     = Column(String, nullable=True) # Slack incoming webhook URL
+    discord_webhook_url   = Column(String, nullable=True) # Discord incoming webhook URL
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+    id         = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, nullable=False, index=True)
+    endpoint   = Column(String, nullable=False, unique=True)
+    p256dh     = Column(String, nullable=False)
+    auth       = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class TaskCollaborator(Base):

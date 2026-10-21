@@ -19,6 +19,7 @@
     <a class="navbar-brand" href="/">TR</a>
     <ul class="navbar-links">
       <li><span id="nav-email" style="color:var(--text-dim);font-size:12px;"></span></li>
+      <li><button class="theme-btn" id="theme-btn" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button></li>
       <li><span id="nav-badge" class="nav-badge" style="display:none;">
         ⚡ <span class="pts" id="nav-pts">0</span> pts · L<span id="nav-lvl">1</span>
       </span></li>
@@ -327,11 +328,12 @@
 
   <!-- Particle canvas + PWA registration -->
   <script>
+    var _particleRGB = '245,245,245';
     (function(){
       const c=document.getElementById('bg-canvas'), ctx=c.getContext('2d'); let s=[];
       function r(){c.width=innerWidth;c.height=innerHeight;}
       function mk(n){s=[];for(let i=0;i<n;i++)s.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.1+.2,a:Math.random()*.4+.06,v:Math.random()*.2+.04});}
-      function dr(){ctx.clearRect(0,0,c.width,c.height);s.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`rgba(245,245,245,${p.a})`;ctx.fill();p.y+=p.v;if(p.y>c.height){p.y=0;p.x=Math.random()*c.width;}});requestAnimationFrame(dr);}
+      function dr(){ctx.clearRect(0,0,c.width,c.height);s.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`rgba(${_particleRGB},${p.a})`;ctx.fill();p.y+=p.v;if(p.y>c.height){p.y=0;p.x=Math.random()*c.width;}});requestAnimationFrame(dr);}
       r();mk(180);dr();window.addEventListener('resize',()=>{r();mk(180);});
     })();
     if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');

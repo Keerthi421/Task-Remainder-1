@@ -58,8 +58,9 @@ def run_migrations(eng):
 
     # Migrate user_profiles table
     new_profile_cols = [
-        ("whatsapp_phone",    "TEXT"),
-        ("slack_webhook_url", "TEXT"),
+        ("whatsapp_phone",      "TEXT"),
+        ("slack_webhook_url",   "TEXT"),
+        ("discord_webhook_url", "TEXT"),
     ]
     with eng.connect() as conn:
         for col, definition in new_profile_cols:

@@ -942,7 +942,32 @@ async function saveSlack() {
   } catch(_) { notify('Failed to save.'); }
 }
 
+/* ── Dark / light mode ───────────────────────────────────────── */
+function applyTheme(theme) {
+  const root = document.documentElement;
+  if (theme === 'light') {
+    root.dataset.theme = 'light';
+    if (typeof _particleRGB !== 'undefined') _particleRGB = '15,15,15';
+    const btn = $('theme-btn'); if (btn) btn.textContent = '🌙';
+  } else {
+    delete root.dataset.theme;
+    if (typeof _particleRGB !== 'undefined') _particleRGB = '245,245,245';
+    const btn = $('theme-btn'); if (btn) btn.textContent = '☀';
+  }
+  try { localStorage.setItem('theme', theme); } catch(_) {}
+}
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  applyTheme(current === 'light' ? 'dark' : 'light');
+}
+
 /* ── Init ────────────────────────────────────────────────────── */
+// Apply saved theme before first render to avoid flicker
+(function() {
+  try { applyTheme(localStorage.getItem('theme') || 'dark'); } catch(_) {}
+})();
+
 $('tz-label').textContent = `(${TZ})`;
 fetchMe();
 fetchProfile();

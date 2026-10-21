@@ -111,6 +111,7 @@ def get_profile_out(db: Session, email: str) -> schemas.ProfileOut:
         phone=p.phone,
         whatsapp_phone=p.whatsapp_phone,
         slack_webhook_url=p.slack_webhook_url,
+        discord_webhook_url=p.discord_webhook_url,
     )
 
 def update_profile(db: Session, email: str, upd: schemas.ProfileUpdate) -> schemas.ProfileOut:
@@ -123,8 +124,31 @@ def update_profile(db: Session, email: str, upd: schemas.ProfileUpdate) -> schem
         profile.whatsapp_phone = upd.whatsapp_phone or None
     if upd.slack_webhook_url is not None:
         profile.slack_webhook_url = upd.slack_webhook_url or None
+    if upd.discord_webhook_url is not None:
+        profile.discord_webhook_url = upd.discord_webhook_url or None
     db.commit()
     return get_profile_out(db, email)
+
+# ── Push subscriptions ────────────────────────────────────────────────────────
+
+def upsert_push_subscription(db: Session, email: str, endpoint: str,
+                              p256dh: str, auth: str) -> None:
+    sub = db.query(models.PushSubscription).filter_by(endpoint=endpoint).first()
+    if sub:
+        sub.user_email = email; sub.p256dh = p256dh; sub.auth = auth
+    else:
+        sub = models.PushSubscription(user_email=email, endpoint=endpoint,
+                                      p256dh=p256dh, auth=auth)
+        db.add(sub)
+    db.commit()
+
+def get_push_subscriptions(db: Session, email: str) -> list[dict]:
+    subs = db.query(models.PushSubscription).filter_by(user_email=email).all()
+    return [{"endpoint": s.endpoint, "p256dh": s.p256dh, "auth": s.auth} for s in subs]
+
+def delete_push_subscription(db: Session, endpoint: str) -> None:
+    db.query(models.PushSubscription).filter_by(endpoint=endpoint).delete()
+    db.commit()
 
 def get_task_by_id(db: Session, task_id: int) -> models.Task | None:
     """Fetch a task without ownership check — used only for snooze (token-validated elsewhere)."""
