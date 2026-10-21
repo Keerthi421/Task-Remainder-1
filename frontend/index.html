@@ -139,6 +139,23 @@
             </label>
           </div>
           <p class="hint-note"><span class="hint-dot"></span> Emails sent to your account address automatically.</p>
+
+          <!-- Settings panel -->
+          <div class="settings-panel">
+            <h3>⚙ Settings</h3>
+            <div class="setting-row">
+              <span class="setting-label">📅 Weekly digest email</span>
+              <label class="toggle">
+                <input type="checkbox" id="toggle-digest" onchange="saveDigestSetting()">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">📱 WhatsApp number</span>
+              <input type="tel" id="wa-phone" class="setting-input" placeholder="+91XXXXXXXXXX"
+                     onblur="saveWhatsApp()">
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -160,6 +177,12 @@
         <!-- Tag filter -->
         <div class="tag-filter" id="tag-filter">
           <span class="tag-chip active" data-tag="all" onclick="filterTag(this)">All</span>
+        </div>
+
+        <!-- Shared with me -->
+        <div class="shared-section" id="shared-section" style="display:none;">
+          <h3>Shared with me <span id="shared-count" class="shared-badge">0</span></h3>
+          <div id="shared-container" class="task-list"></div>
         </div>
 
         <!-- List view -->
@@ -188,6 +211,22 @@
   </div>
 
   <div id="toast"></div>
+
+  <!-- Collaborator invite modal -->
+  <div id="collab-modal" class="modal-overlay" style="display:none;" onclick="closeCollabModal(event)">
+    <div class="modal-card">
+      <h2 class="modal-title">Invite Collaborator.</h2>
+      <p class="modal-sub">They'll get an email and can see this task in their "Shared with me" list.</p>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <input type="email" id="collab-email" placeholder="colleague@email.com" style="flex:1;font-size:13px;">
+        <button class="btn btn-outline btn-sm" onclick="addCollaborator()">Invite</button>
+      </div>
+      <ul class="collab-list" id="collab-list"></ul>
+      <div class="modal-close">
+        <button class="btn-ghost" onclick="document.getElementById('collab-modal').style.display='none'">Close</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Edit modal -->
   <div id="edit-modal" class="modal-overlay" style="display:none;" onclick="closeEditModal(event)">

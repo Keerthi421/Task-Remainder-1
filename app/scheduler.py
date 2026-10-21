@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from .database import SessionLocal
 from .models import Task, User, UserProfile
-from .email_utils import send_reminder_email, send_weekly_digest, send_sms
+from .email_utils import send_reminder_email, send_weekly_digest, send_sms, send_whatsapp
 from .recurrence import get_tz, localize
 from . import crud
 
@@ -87,8 +87,12 @@ def _process_task(db: Session, task: Task):
         logger.info(f"Sent {milestone}m reminder for '{task.title}' to {notify_to}")
 
         profile = db.query(UserProfile).filter_by(user_email=task.user_email).first()
-        if profile and profile.phone:
-            send_sms(profile.phone, f"Reminder: {task.title} | Due: {task_time_str} | Priority: {task.priority}")
+        if profile:
+            msg = f"🔔 Task Reminder\n*{task.title}*\nDue: {task_time_str}\nPriority: {task.priority.upper()}"
+            if profile.phone:
+                send_sms(profile.phone, msg)
+            if profile.whatsapp_phone:
+                send_whatsapp(profile.whatsapp_phone, msg)
 
         if milestone == 0:
             if task.assigned_to and task.assigned_to != notify_to:
@@ -112,6 +116,31 @@ def _process_task(db: Session, task: Task):
         if crud.advance_recurring(task, after=skipped_to):
             logger.info(f"'{task.title}' moved to next occurrence {task.due_date}")
         db.commit()
+
+
+# ── Priority auto-escalate (every 15 minutes) ─────────────────────────────────
+
+def escalate_priority_job():
+    """Bump low/moderate tasks to HIGH when they're within 24 hours of their deadline."""
+    db: Session = SessionLocal()
+    try:
+        now_ist = datetime.now(IST)
+        cutoff  = now_ist + timedelta(hours=24)
+        tasks = db.query(Task).filter(
+            Task.status   == "pending",
+            Task.priority != "high",
+            Task.due_date <= cutoff,
+            Task.due_date >= now_ist,
+        ).all()
+        for task in tasks:
+            logger.info(f"Auto-escalating '{task.title}' to high priority")
+            task.priority = "high"
+        if tasks:
+            db.commit()
+    except Exception as e:
+        logger.error(f"escalate_priority_job crashed: {e}", exc_info=True)
+    finally:
+        db.close()
 
 
 # ── Weekly digest (every Monday 08:00 IST) ────────────────────────────────────
@@ -160,6 +189,7 @@ def start_scheduler():
     if scheduler.running:
         return
     scheduler.add_job(reminder_job, "interval", minutes=1, id="reminder")
+    scheduler.add_job(escalate_priority_job, "interval", minutes=15, id="escalate_priority")
     scheduler.add_job(
         weekly_digest_job, "cron",
         day_of_week="mon", hour=8, minute=0,

@@ -55,3 +55,18 @@ def run_migrations(eng):
                 conn.commit()
             except Exception:
                 pass  # column already exists
+
+    # Migrate user_profiles table
+    new_profile_cols = [
+        ("whatsapp_phone", "TEXT"),
+    ]
+    with eng.connect() as conn:
+        for col, definition in new_profile_cols:
+            try:
+                conn.execute(text(f"ALTER TABLE user_profiles ADD COLUMN {col} {definition}"))
+                conn.commit()
+            except Exception:
+                pass  # column already exists
+
+    # Create task_collaborators table if missing (new table, no ALTER needed)
+    Base.metadata.create_all(bind=eng)

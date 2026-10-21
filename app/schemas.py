@@ -144,10 +144,26 @@ class ProfileOut(BaseModel):
     streak_days:           int
     weekly_digest_enabled: bool
     phone:                 str | None = None
+    whatsapp_phone:        str | None = None
 
 class ProfileUpdate(BaseModel):
     weekly_digest_enabled: bool | None = None
     phone:                 str | None  = None
+    whatsapp_phone:        str | None  = None
+
+# ── Collaborators ─────────────────────────────────────────────────────────────
+
+class CollaboratorInvite(BaseModel):
+    email: EmailStr
+
+class CollaboratorOut(BaseModel):
+    id:                 int
+    task_id:            int
+    collaborator_email: str
+    created_at:         datetime
+
+    class Config:
+        from_attributes = True
 
 class StatsOut(BaseModel):
     total:           int

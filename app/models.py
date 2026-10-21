@@ -63,3 +63,13 @@ class UserProfile(Base):
     last_completion_date  = Column(Date, nullable=True)
     weekly_digest_enabled = Column(Integer, default=1)   # boolean
     phone                 = Column(String, nullable=True) # for SMS (Twilio)
+    whatsapp_phone        = Column(String, nullable=True) # E.164 e.g. +919876543210
+
+
+class TaskCollaborator(Base):
+    __tablename__ = "task_collaborators"
+    id                  = Column(Integer, primary_key=True, index=True)
+    task_id             = Column(Integer, nullable=False, index=True)
+    task_owner_email    = Column(String, nullable=False)
+    collaborator_email  = Column(String, nullable=False, index=True)
+    created_at          = Column(DateTime(timezone=True), server_default=func.now())

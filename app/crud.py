@@ -108,7 +108,8 @@ def get_profile_out(db: Session, email: str) -> schemas.ProfileOut:
         level_name=LEVEL_NAMES.get(p.level, "Starter"),
         streak_days=p.streak_days,
         weekly_digest_enabled=bool(p.weekly_digest_enabled),
-        phone=p.phone
+        phone=p.phone,
+        whatsapp_phone=p.whatsapp_phone,
     )
 
 def update_profile(db: Session, email: str, upd: schemas.ProfileUpdate) -> schemas.ProfileOut:
@@ -117,6 +118,8 @@ def update_profile(db: Session, email: str, upd: schemas.ProfileUpdate) -> schem
         profile.weekly_digest_enabled = int(upd.weekly_digest_enabled)
     if upd.phone is not None:
         profile.phone = upd.phone or None
+    if upd.whatsapp_phone is not None:
+        profile.whatsapp_phone = upd.whatsapp_phone or None
     db.commit()
     return get_profile_out(db, email)
 
@@ -267,6 +270,62 @@ def delete_template(db: Session, tmpl_id: int, user_email: str) -> bool:
     db.delete(tmpl)
     db.commit()
     return True
+
+# ── Collaborators ─────────────────────────────────────────────────────────────
+
+def invite_collaborator(db: Session, task_id: int, owner_email: str,
+                        collaborator_email: str) -> models.TaskCollaborator | None:
+    """Add collaborator to a task the owner owns. Returns None if task not found."""
+    task = get_task(db, task_id, owner_email)
+    if not task:
+        return None
+    # Avoid duplicates
+    existing = db.query(models.TaskCollaborator).filter_by(
+        task_id=task_id, collaborator_email=collaborator_email
+    ).first()
+    if existing:
+        return existing
+    collab = models.TaskCollaborator(
+        task_id=task_id,
+        task_owner_email=owner_email,
+        collaborator_email=collaborator_email,
+    )
+    db.add(collab)
+    db.commit()
+    db.refresh(collab)
+    return collab
+
+def get_task_collaborators(db: Session, task_id: int,
+                           owner_email: str) -> list[models.TaskCollaborator]:
+    task = get_task(db, task_id, owner_email)
+    if not task:
+        return []
+    return db.query(models.TaskCollaborator).filter_by(task_id=task_id).all()
+
+def remove_collaborator(db: Session, task_id: int, owner_email: str,
+                        collaborator_email: str) -> bool:
+    task = get_task(db, task_id, owner_email)
+    if not task:
+        return False
+    collab = db.query(models.TaskCollaborator).filter_by(
+        task_id=task_id, collaborator_email=collaborator_email
+    ).first()
+    if not collab:
+        return False
+    db.delete(collab)
+    db.commit()
+    return True
+
+def get_tasks_shared_with(db: Session, email: str) -> list[models.Task]:
+    """Return tasks where `email` is a collaborator (not the owner)."""
+    collabs = db.query(models.TaskCollaborator).filter_by(
+        collaborator_email=email
+    ).all()
+    task_ids = [c.task_id for c in collabs]
+    if not task_ids:
+        return []
+    return db.query(models.Task).filter(models.Task.id.in_(task_ids)).all()
+
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 

@@ -1,12 +1,13 @@
 import csv
 import io
+import textwrap
 from datetime import datetime, timedelta
 from typing import Annotated
 
 from fastapi import (FastAPI, Depends, HTTPException, status,
                      UploadFile, File, Request)
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -217,6 +218,11 @@ def list_tasks(db: Session = Depends(get_db),
                current_user: schemas.UserOut = Depends(get_current_user)):
     return crud.get_tasks(db, current_user.email)
 
+@app.get("/tasks/shared-with-me", response_model=list[schemas.TaskOut])
+def tasks_shared_with_me(db: Session = Depends(get_db),
+                         current_user: schemas.UserOut = Depends(get_current_user)):
+    return crud.get_tasks_shared_with(db, current_user.email)
+
 @app.get("/tasks/{task_id}", response_model=schemas.TaskOut)
 def get_task(task_id: int, db: Session = Depends(get_db),
              current_user: schemas.UserOut = Depends(get_current_user)):
@@ -262,6 +268,84 @@ def view_public_task(token: str, db: Session = Depends(get_db)):
         "due_date": t.due_date, "priority": t.priority,
         "status": t.status, "tags": t.tags,
     }
+
+# ── ICS calendar export ───────────────────────────────────────────────────────
+
+@app.get("/tasks/{task_id}/export.ics")
+def export_task_ics(task_id: int, db: Session = Depends(get_db),
+                    current_user: schemas.UserOut = Depends(get_current_user)):
+    t = crud.get_task(db, task_id, current_user.email)
+    if not t:
+        raise HTTPException(404, "Task not found")
+    from .recurrence import get_tz, localize
+    tz = get_tz(t.timezone)
+    due = localize(t.due_date, tz) if t.due_date.tzinfo is None else t.due_date.astimezone(tz)
+    start = due.strftime("%Y%m%dT%H%M%S")
+    end   = (due + timedelta(hours=1)).strftime("%Y%m%dT%H%M%S")
+    now   = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    tzid  = t.timezone or "Asia/Kolkata"
+    desc  = (t.description or "").replace("\n", "\\n").replace(",", "\\,").replace(";", "\\;")
+    title = (t.title or "").replace(",", "\\,").replace(";", "\\;")
+    rrule_lines = ""
+    if t.recurrence_rule:
+        for line in t.recurrence_rule.split("\n"):
+            if line.startswith("RRULE:"):
+                rrule_lines = f"RRULE:{line[6:]}\n"
+    ics = textwrap.dedent(f"""\
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Task Reminder//EN
+        CALSCALE:GREGORIAN
+        BEGIN:VEVENT
+        UID:{task_id}@task-reminder
+        DTSTAMP:{now}
+        DTSTART;TZID={tzid}:{start}
+        DTEND;TZID={tzid}:{end}
+        SUMMARY:{title}
+        DESCRIPTION:{desc}
+        PRIORITY:{'1' if t.priority == 'high' else '5' if t.priority == 'moderate' else '9'}
+        {rrule_lines}END:VEVENT
+        END:VCALENDAR
+    """).replace("    ", "").strip()
+    safe_title = "".join(c for c in t.title if c.isalnum() or c in " -_")[:40]
+    return Response(
+        content=ics,
+        media_type="text/calendar",
+        headers={"Content-Disposition": f'attachment; filename="{safe_title}.ics"'}
+    )
+
+# ── Collaborators ─────────────────────────────────────────────────────────────
+
+@app.post("/tasks/{task_id}/collaborators", response_model=schemas.CollaboratorOut)
+def invite_collaborator(task_id: int, invite: schemas.CollaboratorInvite,
+                        db: Session = Depends(get_db),
+                        current_user: schemas.UserOut = Depends(get_current_user)):
+    result = crud.invite_collaborator(db, task_id, current_user.email, invite.email)
+    if result is None:
+        raise HTTPException(404, "Task not found")
+    # Send notification email to the collaborator
+    from .email_utils import send_email
+    task = crud.get_task(db, task_id, current_user.email)
+    if task:
+        send_email(
+            invite.email,
+            f"🤝 {current_user.email} shared a task with you",
+            f"{current_user.email} added you as a collaborator on:\n\n"
+            f"  {task.title}\n  Due: {task.due_date}\n  Priority: {task.priority}",
+        )
+    return result
+
+@app.get("/tasks/{task_id}/collaborators", response_model=list[schemas.CollaboratorOut])
+def list_collaborators(task_id: int, db: Session = Depends(get_db),
+                       current_user: schemas.UserOut = Depends(get_current_user)):
+    return crud.get_task_collaborators(db, task_id, current_user.email)
+
+@app.delete("/tasks/{task_id}/collaborators/{email}")
+def remove_collaborator(task_id: int, email: str, db: Session = Depends(get_db),
+                        current_user: schemas.UserOut = Depends(get_current_user)):
+    if not crud.remove_collaborator(db, task_id, current_user.email, email):
+        raise HTTPException(404, "Not found")
+    return {"message": "Removed"}
 
 # ── Reorder ───────────────────────────────────────────────────────────────────
 

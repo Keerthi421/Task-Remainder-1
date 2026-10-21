@@ -340,6 +340,38 @@ input.locked { opacity:.6; cursor:not-allowed; }
 .url-box input { flex:1; font-size:13px; }
 .modal-close { margin-top:20px; text-align:right; }
 
+/* ── Settings panel ──────────────────────────────────────────── */
+.settings-panel { border-top:0.8px solid var(--border); margin-top:20px; padding-top:18px; }
+.settings-panel h3 { font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase;
+                     color:var(--text-dim); margin-bottom:12px; }
+.setting-row { display:flex; align-items:center; justify-content:space-between;
+               padding:8px 0; border-bottom:0.8px solid var(--border); }
+.setting-row:last-child { border-bottom:none; }
+.setting-label { font-size:13px; color:var(--text-mid); }
+.setting-input { font-size:12px; background:var(--surface); border:0.8px solid var(--border);
+                 border-radius:8px; padding:6px 10px; color:var(--text); outline:none; width:160px; }
+.setting-input:focus { border-color:var(--border-mid); }
+
+/* ── Shared tasks section ────────────────────────────────────── */
+.shared-section { margin-top:24px; }
+.shared-section h3 { font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase;
+                     color:var(--text-dim); margin-bottom:12px; padding-bottom:8px;
+                     border-bottom:0.8px solid var(--border); }
+.shared-badge { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:10px;
+                font-weight:700; letter-spacing:.6px; text-transform:uppercase;
+                background:rgba(96,165,250,.12); color:#60a5fa; border:0.8px solid rgba(96,165,250,.25);
+                margin-left:6px; }
+.icon-btn.collab:hover { background:rgba(168,85,247,.1); border-color:rgba(168,85,247,.3); color:#a855f7; }
+
+/* ── Collaborator invite modal ───────────────────────────────── */
+.collab-list { list-style:none; margin:12px 0 0; }
+.collab-list li { display:flex; justify-content:space-between; align-items:center;
+                  padding:8px 0; border-bottom:0.8px solid var(--border); font-size:13px; }
+.collab-list li:last-child { border-bottom:none; }
+.collab-remove { background:none; border:none; color:var(--text-dim); cursor:pointer;
+                 font-size:14px; padding:0 4px; }
+.collab-remove:hover { color:var(--high); }
+
 /* ── Animations ──────────────────────────────────────────────── */
 @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
 

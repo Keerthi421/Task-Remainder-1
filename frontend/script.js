@@ -347,9 +347,11 @@ function renderTasks() {
       <div class="task-actions">
         <button class="icon-btn" title="${task.status==='pending'?'Mark complete':'Mark pending'}"
           onclick="toggleStatus(${task.id},'${task.status==='pending'?'completed':'pending'}')">${task.status==='pending'?'✔':'↺'}</button>
-        <button class="icon-btn edit" title="Edit" onclick="openEditModal(${task.id})">✎</button>
-        <button class="icon-btn share" title="Share link" onclick="shareTask(${task.id})">🔗</button>
-        <button class="icon-btn delete" title="Delete" onclick="deleteTask(${task.id})">✕</button>
+        <button class="icon-btn edit"   title="Edit"        onclick="openEditModal(${task.id})">✎</button>
+        <button class="icon-btn collab" title="Collaborators" onclick="openCollabModal(${task.id})">👥</button>
+        <button class="icon-btn share"  title="Share link"   onclick="shareTask(${task.id})">🔗</button>
+        <button class="icon-btn"        title="Export .ics"  onclick="exportIcs(${task.id}, '${esc(task.title)}')" style="font-size:13px;">📅</button>
+        <button class="icon-btn delete" title="Delete"       onclick="deleteTask(${task.id})">✕</button>
       </div>
     </div>`;
   }).join('');
@@ -612,6 +614,161 @@ function shortRepeat(summary) {
   return summary.split(' at ')[0];
 }
 
+/* ── ICS export ──────────────────────────────────────────────── */
+function exportIcs(id, title) {
+  const a = document.createElement('a');
+  a.href = `${API}/tasks/${id}/export.ics`;
+  a.setAttribute('download', `${title}.ics`);
+  a.setAttribute('target', '_blank');
+  // Use Authorization header by fetching with token and creating an object URL
+  fetch(`${API}/tasks/${id}/export.ics`, { headers: hdr() })
+    .then(r => r.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    })
+    .catch(() => notify('Failed to export calendar event.'));
+}
+
+/* ── Collaborators ───────────────────────────────────────────── */
+let collabTaskId = null;
+
+async function openCollabModal(id) {
+  collabTaskId = id;
+  $('collab-email').value = '';
+  $('collab-modal').style.display = 'flex';
+  await refreshCollabList();
+}
+
+function closeCollabModal(e) {
+  if (!e || e.target === $('collab-modal')) {
+    $('collab-modal').style.display = 'none';
+    collabTaskId = null;
+  }
+}
+
+async function refreshCollabList() {
+  if (!collabTaskId) return;
+  try {
+    const r = await fetch(`${API}/tasks/${collabTaskId}/collaborators`, { headers: hdr() });
+    if (!r.ok) return;
+    const list = await r.json();
+    const ul = $('collab-list');
+    if (!list.length) {
+      ul.innerHTML = '<li style="color:var(--text-dim);font-size:13px;">No collaborators yet.</li>';
+      return;
+    }
+    ul.innerHTML = list.map(c => `<li>
+      <span>${esc(c.collaborator_email)}</span>
+      <button class="collab-remove" title="Remove" onclick="removeCollaborator('${esc(c.collaborator_email)}')">✕</button>
+    </li>`).join('');
+  } catch(_) {}
+}
+
+async function addCollaborator() {
+  const email = $('collab-email').value.trim();
+  if (!email || !collabTaskId) return;
+  try {
+    const r = await fetch(`${API}/tasks/${collabTaskId}/collaborators`, {
+      method: 'POST', headers: hdr(), body: JSON.stringify({ email })
+    });
+    if (r.ok) {
+      $('collab-email').value = '';
+      notify(`✓ Invited ${email}`);
+      await refreshCollabList();
+      fetchSharedTasks(); // refresh the "shared with me" section for them
+    } else {
+      const d = await r.json().catch(() => ({}));
+      notify('Error: ' + (d.detail || 'Failed'));
+    }
+  } catch(_) { notify('Network error.'); }
+}
+
+async function removeCollaborator(email) {
+  if (!collabTaskId) return;
+  try {
+    const r = await fetch(`${API}/tasks/${collabTaskId}/collaborators/${encodeURIComponent(email)}`,
+      { method: 'DELETE', headers: hdr() });
+    if (r.ok) { notify('Removed.'); await refreshCollabList(); }
+  } catch(_) { notify('Error.'); }
+}
+
+/* ── Shared with me ──────────────────────────────────────────── */
+async function fetchSharedTasks() {
+  try {
+    const r = await fetch(`${API}/tasks/shared-with-me`, { headers: hdr() });
+    if (!r.ok) return;
+    const tasks = await r.json();
+    const section = $('shared-section');
+    const container = $('shared-container');
+    $('shared-count').textContent = tasks.length;
+    if (!tasks.length) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    container.innerHTML = tasks.map(task => {
+      const overdue = isOverdue(task);
+      return `<div class="task-card ${task.priority}${task.status === 'completed' ? ' completed' : ''}" data-id="${task.id}">
+        <div class="task-info">
+          <p class="task-title${task.status === 'completed' ? ' done' : ''}">${esc(task.title)}</p>
+          ${task.description ? `<p class="task-desc">${esc(task.description)}</p>` : ''}
+          <div class="task-meta">
+            <span class="meta-tag">📅 ${fmtDate(task.due_date)}</span>
+            <span class="meta-tag priority-${task.priority}">${task.priority}</span>
+            <span class="meta-tag shared-badge">shared</span>
+            ${overdue ? '<span class="meta-tag overdue-tag">⚠ Overdue</span>' : ''}
+          </div>
+        </div>
+        <div class="task-actions">
+          <button class="icon-btn" title="Export .ics" onclick="exportIcs(${task.id}, '${esc(task.title)}')" style="font-size:13px;">📅</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(_) {}
+}
+
+/* ── Settings: weekly digest + WhatsApp ──────────────────────── */
+async function loadProfileSettings() {
+  try {
+    const r = await fetch(`${API}/users/profile`, { headers: hdr() });
+    if (!r.ok) return;
+    const p = await r.json();
+    const toggle = $('toggle-digest');
+    if (toggle) toggle.checked = !!p.weekly_digest_enabled;
+    const wa = $('wa-phone');
+    if (wa && p.whatsapp_phone) wa.value = p.whatsapp_phone;
+  } catch(_) {}
+}
+
+async function saveDigestSetting() {
+  const enabled = $('toggle-digest').checked;
+  try {
+    const r = await fetch(`${API}/users/profile`, {
+      method: 'PATCH', headers: hdr(),
+      body: JSON.stringify({ weekly_digest_enabled: enabled })
+    });
+    if (r.ok) notify(enabled ? '✓ Weekly digest ON' : 'Weekly digest OFF');
+  } catch(_) { notify('Failed to save.'); }
+}
+
+async function saveWhatsApp() {
+  const phone = ($('wa-phone').value || '').trim();
+  // Basic E.164 validation
+  if (phone && !/^\+\d{8,15}$/.test(phone)) {
+    notify('WhatsApp number must be in E.164 format, e.g. +919876543210');
+    return;
+  }
+  try {
+    const r = await fetch(`${API}/users/profile`, {
+      method: 'PATCH', headers: hdr(),
+      body: JSON.stringify({ whatsapp_phone: phone || null })
+    });
+    if (r.ok) notify(phone ? '✓ WhatsApp number saved' : 'WhatsApp number cleared');
+  } catch(_) { notify('Failed to save.'); }
+}
+
 /* ── Edit modal ──────────────────────────────────────────────── */
 let editingTaskId = null;
 
@@ -681,4 +838,6 @@ fetchMe();
 fetchProfile();
 fetchTasks();
 fetchTemplates();
-setInterval(() => { fetchTasks(); fetchStats(); }, 30000);
+fetchSharedTasks();
+loadProfileSettings();
+setInterval(() => { fetchTasks(); fetchStats(); fetchSharedTasks(); }, 30000);

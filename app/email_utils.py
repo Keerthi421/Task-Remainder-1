@@ -44,23 +44,56 @@ def send_email(to_email: str, subject: str, body: str,
     return False
 
 
-# ── SMS (Twilio hook) ──────────────────────────────────────────────────────────
+# ── SMS / WhatsApp (Twilio) ────────────────────────────────────────────────────
 
-def send_sms(to_phone: str, message: str) -> bool:
-    """Send SMS via Twilio. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE."""
-    sid       = os.getenv("TWILIO_ACCOUNT_SID")
-    token     = os.getenv("TWILIO_AUTH_TOKEN")
-    from_num  = os.getenv("TWILIO_PHONE_NUMBER")
-    if not all([sid, token, from_num]):
-        return False
+def _twilio_client():
+    """Return (client, from_sms, from_wa) or None if not configured."""
     try:
         from twilio.rest import Client
-        Client(sid, token).messages.create(body=message, from_=from_num, to=to_phone)
-        return True
     except ImportError:
-        print("LOG: twilio package not installed – install with: pip install twilio")
+        print("LOG: twilio not installed – run: pip install twilio")
+        return None, None, None
+    sid      = os.getenv("TWILIO_ACCOUNT_SID")
+    token    = os.getenv("TWILIO_AUTH_TOKEN")
+    from_sms = os.getenv("TWILIO_PHONE_NUMBER")      # e.g. +12345678900
+    from_wa  = os.getenv("TWILIO_WHATSAPP_NUMBER",   # e.g. +14155238886 (Twilio sandbox)
+                         "whatsapp:+14155238886")
+    if not all([sid, token, from_sms]):
+        return None, None, None
+    return Client(sid, token), from_sms, from_wa
+
+
+def send_sms(to_phone: str, message: str) -> bool:
+    """Send SMS via Twilio. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER."""
+    client, from_sms, _ = _twilio_client()
+    if not client:
+        return False
+    try:
+        client.messages.create(body=message, from_=from_sms, to=to_phone)
+        print(f"LOG: SMS sent to {to_phone}")
+        return True
     except Exception as e:
         print(f"LOG: SMS error: {e}")
+    return False
+
+
+def send_whatsapp(to_phone: str, message: str) -> bool:
+    """Send a WhatsApp message via Twilio.
+    `to_phone` must be in E.164 format (e.g. +919876543210).
+    Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER.
+    Optionally set TWILIO_WHATSAPP_NUMBER (defaults to Twilio sandbox +14155238886).
+    """
+    client, _, from_wa = _twilio_client()
+    if not client:
+        return False
+    try:
+        wa_to = f"whatsapp:{to_phone}" if not to_phone.startswith("whatsapp:") else to_phone
+        wa_from = from_wa if from_wa.startswith("whatsapp:") else f"whatsapp:{from_wa}"
+        client.messages.create(body=message, from_=wa_from, to=wa_to)
+        print(f"LOG: WhatsApp sent to {to_phone}")
+        return True
+    except Exception as e:
+        print(f"LOG: WhatsApp error: {e}")
     return False
 
 
