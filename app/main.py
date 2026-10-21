@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from .auth import (create_access_token, verify_password,
                    ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM, jwt, JWTError)
 from .database import Base, engine, get_db, run_migrations
-from . import crud, schemas
+from . import crud, schemas, recurrence
 from .scheduler import start_scheduler
 
 load_dotenv()
@@ -138,6 +138,18 @@ def suggest_priority(req: schemas.PriorityRequest):
         raise HTTPException(503, "AI unavailable – set ANTHROPIC_API_KEY in .env")
     return {"priority": result}
 
+# ── Recurrence ────────────────────────────────────────────────────────────────
+
+@app.post("/tasks/recurrence/preview")
+def preview_recurrence(req: schemas.RecurrencePreviewRequest,
+                       current_user: schemas.UserOut = Depends(get_current_user)):
+    try:
+        options = recurrence.parse(req.text, req.timezone)
+    except recurrence.RecurrenceError as e:
+        raise HTTPException(400, str(e))
+    tz = recurrence.get_tz(req.timezone)
+    return {"timezone": req.timezone, "interpretations": [o.preview(tz) for o in options]}
+
 # ── CSV import ────────────────────────────────────────────────────────────────
 
 @app.post("/tasks/import", response_model=list[schemas.TaskOut])
@@ -171,7 +183,10 @@ async def import_tasks(file: UploadFile = File(...),
 @app.post("/tasks", response_model=schemas.TaskOut)
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db),
                 current_user: schemas.UserOut = Depends(get_current_user)):
-    return crud.create_task(db, task, current_user.email)
+    try:
+        return crud.create_task(db, task, current_user.email)
+    except recurrence.RecurrenceError as e:
+        raise HTTPException(400, str(e))
 
 @app.get("/tasks", response_model=list[schemas.TaskOut])
 def list_tasks(db: Session = Depends(get_db),

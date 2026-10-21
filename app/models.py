@@ -31,6 +31,10 @@ class Task(Base):
     retry_count      = Column(Integer, default=0)
     public_token     = Column(String, nullable=True, unique=True, index=True)
     assigned_to      = Column(String, nullable=True)       # extra email for shared tasks
+    notification_email = Column(String, nullable=True)    # where to send reminder emails
+    timezone         = Column(String, default="Asia/Kolkata")  # IANA zone; due_date is wall time here
+    recurrence_rule  = Column(Text,   nullable=True)       # "DTSTART:...\nRRULE:..." in local wall time
+    recurrence_summary = Column(String, nullable=True)
 
 
 class TaskTemplate(Base):

@@ -29,7 +29,11 @@ def run_migrations(eng):
         ("sub_tasks",        "TEXT    DEFAULT '[]'"),
         ("retry_count",      "INTEGER DEFAULT 0"),
         ("public_token",     "TEXT"),
-        ("assigned_to",      "TEXT"),
+        ("assigned_to",        "TEXT"),
+        ("notification_email", "TEXT"),
+        ("timezone",           "TEXT    DEFAULT 'Asia/Kolkata'"),
+        ("recurrence_rule",    "TEXT"),
+        ("recurrence_summary", "TEXT"),
     ]
     with eng.connect() as conn:
         for col, definition in new_task_cols:

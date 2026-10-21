@@ -1,9 +1,17 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import datetime, date
 from typing import Literal, Any
 
+from .recurrence import is_valid_tz, MAX_TEXT
+
 Priority = Literal["low", "moderate", "high"]
 Status   = Literal["pending", "completed"]
+
+
+def _check_tz(v: str | None) -> str | None:
+    if v is not None and not is_valid_tz(v):
+        raise ValueError(f"Unknown time zone '{v}'")
+    return v
 
 # ── Tasks ─────────────────────────────────────────────────────────────────────
 
@@ -20,8 +28,14 @@ class TaskCreate(BaseModel):
     tags:             str       = Field(default="", max_length=500)   # comma-separated
     reminder_minutes: list[int] = Field(default=[0])                  # e.g. [1440, 60, 0]
     sub_tasks:        list[dict] = Field(default=[])
-    assigned_to:      EmailStr | None = None
-    user_email:       EmailStr | None = None   # ignored, kept for backward compat
+    assigned_to:        EmailStr | None = None
+    notification_email: EmailStr | None = None  # where to send reminders
+    user_email:         EmailStr | None = None  # ignored, kept for backward compat
+    timezone:           str | None = None       # IANA zone the due_date wall time is in
+    recurrence_text:    str | None = Field(default=None, max_length=MAX_TEXT)
+    recurrence_choice:  int = Field(default=0, ge=0, le=3)  # which reading of an ambiguous phrase
+
+    validate_tz = field_validator("timezone")(_check_tz)
 
 class TaskUpdate(BaseModel):
     title:       str | None      = Field(default=None, min_length=1, max_length=200)
@@ -49,11 +63,21 @@ class TaskOut(BaseModel):
     reminder_minutes: str       = "0"
     sub_tasks:        str       = "[]"
     retry_count:      int       = 0
-    public_token:     str | None = None
-    assigned_to:      str | None = None
+    public_token:       str | None = None
+    assigned_to:        str | None = None
+    notification_email: str | None = None
+    timezone:           str | None = None
+    recurrence_summary: str | None = None
 
     class Config:
         from_attributes = True
+
+
+class RecurrencePreviewRequest(BaseModel):
+    text:     str = Field(min_length=1, max_length=MAX_TEXT)
+    timezone: str
+
+    validate_tz = field_validator("timezone")(_check_tz)
 
 # ── Templates ─────────────────────────────────────────────────────────────────
 

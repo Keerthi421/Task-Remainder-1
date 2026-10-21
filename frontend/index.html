@@ -82,9 +82,15 @@
               <label for="description">Description</label>
               <textarea id="description" rows="2" placeholder="What needs to be done..."></textarea>
             </div>
+            <div class="form-group">
+              <label for="repeat">Repeat (optional)</label>
+              <input type="text" id="repeat" maxlength="300" autocomplete="off"
+                     placeholder="e.g. every 2nd Tuesday at 6pm until December" oninput="onRepeatInput()">
+              <div id="repeat-preview" class="repeat-preview" style="display:none;" aria-live="polite"></div>
+            </div>
             <div class="form-row">
               <div class="form-group">
-                <label for="due_date">Notify At (IST)</label>
+                <label for="due_date">Notify At <span id="tz-label"></span></label>
                 <input type="datetime-local" id="due_date" required>
               </div>
               <div class="form-group">
@@ -99,6 +105,10 @@
             <div class="form-group">
               <label for="tags">Tags</label>
               <input type="text" id="tags" placeholder="work, personal, urgent (comma-separated)">
+            </div>
+            <div class="form-group">
+              <label for="notification_email">Send Reminder To</label>
+              <input type="email" id="notification_email" placeholder="your@email.com" required>
             </div>
             <div class="form-group">
               <label for="assigned_to">Assign To (optional)</label>

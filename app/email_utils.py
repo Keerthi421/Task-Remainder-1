@@ -1,5 +1,6 @@
 import json
 import os
+from html import escape
 import requests
 from dotenv import load_dotenv
 
@@ -65,7 +66,8 @@ def send_sms(to_phone: str, message: str) -> bool:
 
 # ── Reminder email ─────────────────────────────────────────────────────────────
 
-def send_reminder_email(task, task_time_str: str, now_str: str) -> bool:
+def send_reminder_email(task, task_time_str: str, now_str: str,
+                        override_email: str | None = None) -> bool:
     subject  = f"🔔 Reminder: {task.title}"
     priority_emoji = {"high": "🔴", "moderate": "🟡", "low": "🟢"}.get(task.priority, "⚪")
 
@@ -110,17 +112,19 @@ def send_reminder_email(task, task_time_str: str, now_str: str) -> bool:
         <td style='padding:8px 0;font-size:14px;color:#111;'>{task_time_str}</td>
       </tr>
       {'<tr><td style="padding:8px 0;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#999;">Details</td><td style="padding:8px 0;font-size:14px;color:#111;">' + task.description + '</td></tr>' if task.description else ''}
+      {'<tr><td style="padding:8px 0;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#999;">Repeats</td><td style="padding:8px 0;font-size:14px;color:#111;">' + escape(task.recurrence_summary) + '</td></tr>' if getattr(task, 'recurrence_summary', None) else ''}
     </table>
     {sub_items}
   </div>
   <div style='padding:20px 40px 32px;border-top:1px solid #f0f0f0;'>
-    <p style='margin:0;font-size:12px;color:#bbb;'>Sent at {now_str} IST · Task Reminder App</p>
+    <p style='margin:0;font-size:12px;color:#bbb;'>Sent at {now_str} · Task Reminder App</p>
   </div>
 </div>
 </body></html>"""
 
     plain = f"Reminder: {task.title}\nPriority: {task.priority}\nScheduled: {task_time_str}"
-    return send_email(task.user_email, subject, plain, html)
+    to = override_email or task.user_email
+    return send_email(to, subject, plain, html)
 
 
 # ── Weekly digest ──────────────────────────────────────────────────────────────

@@ -10,7 +10,12 @@ let calYear       = new Date().getFullYear();
 let calMonth      = new Date().getMonth(); // 0-based
 let calFilterDate = null;     // YYYY-MM-DD string or null
 let templates     = [];
+let repeatOptions = [];       // readings of the Repeat text, from /tasks/recurrence/preview
+let repeatChoice  = 0;
+let repeatSeq     = 0;
+let repeatTimer;
 
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
 const $ = id => document.getElementById(id);
 
 function hdr() { return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }; }
@@ -331,6 +336,7 @@ function renderTasks() {
         <div class="task-meta">
           <span class="meta-tag">📅 ${fmtDate(task.due_date)}</span>
           <span class="meta-tag priority-${task.priority}">${task.priority}</span>
+          ${task.recurrence_summary ? `<span class="meta-tag repeat-tag" title="${esc(task.recurrence_summary)}">↻ ${esc(shortRepeat(task.recurrence_summary))}</span>` : ''}
           ${overdue ? '<span class="meta-tag overdue-tag">⚠ Overdue</span>' : ''}
           ${task.assigned_to ? `<span class="meta-tag">👤 ${esc(task.assigned_to)}</span>` : ''}
           ${(task.tags||'').split(',').filter(x=>x.trim()).map(tag=>`<span class="meta-tag">${esc(tag.trim())}</span>`).join('')}
@@ -395,10 +401,14 @@ $('task-form').addEventListener('submit', async e => {
     description:      $('description').value,
     due_date:         $('due_date').value,
     priority:         $('priority').value,
-    tags:             $('tags').value,
-    assigned_to:      $('assigned_to').value || null,
+    tags:               $('tags').value,
+    notification_email: $('notification_email').value || null,
+    assigned_to:        $('assigned_to').value || null,
     reminder_minutes: mins.length ? mins : [0],
     sub_tasks:        getSubtasks(),
+    timezone:           TZ,
+    recurrence_text:    $('repeat').value.trim() || null,
+    recurrence_choice:  repeatChoice,
   };
   try {
     const r = await fetch(`${API}/tasks`, { method:'POST', headers: hdr(), body: JSON.stringify(body) });
@@ -406,6 +416,9 @@ $('task-form').addEventListener('submit', async e => {
       notify('✓ Reminder scheduled!');
       $('task-form').reset();
       $('subtask-builder').innerHTML = '';
+      repeatOptions = []; repeatChoice = 0;
+      $('repeat-preview').style.display = 'none';
+      setDueLocked(null);
       document.querySelectorAll('.reminder-chip').forEach(c => { c.classList.remove('active'); c.querySelector('input').checked = false; });
       document.getElementById('rc-0').querySelector('input').checked = true;
       document.getElementById('rc-0').classList.add('active');
@@ -423,7 +436,13 @@ async function toggleStatus(id, newStatus) {
     const r = await fetch(`${API}/tasks/${id}`, {
       method:'PATCH', headers: hdr(), body: JSON.stringify({ status: newStatus })
     });
-    if (r.ok) { notify(`Marked as ${newStatus}.`); fetchTasks(); }
+    if (r.ok) {
+      const t = await r.json();
+      notify(newStatus === 'completed' && t.recurrence_summary && t.status === 'pending'
+        ? `✓ Done. Next one: ${fmtDate(t.due_date)}`
+        : `Marked as ${newStatus}.`);
+      fetchTasks();
+    }
   } catch(_) { notify('Error.'); }
 }
 
@@ -522,7 +541,78 @@ function renderCalendar() {
   }
 }
 
+/* ── Recurrence ──────────────────────────────────────────────── */
+function onRepeatInput() {
+  clearTimeout(repeatTimer);
+  repeatTimer = setTimeout(previewRepeat, 350);
+}
+
+async function previewRepeat() {
+  const text = $('repeat').value.trim();
+  const seq = ++repeatSeq;
+  repeatChoice = 0;
+  if (!text) { repeatOptions = []; $('repeat-preview').style.display = 'none'; setDueLocked(null); return; }
+  try {
+    const r = await fetch(`${API}/tasks/recurrence/preview`, {
+      method: 'POST', headers: hdr(), body: JSON.stringify({ text, timezone: TZ })
+    });
+    if (seq !== repeatSeq) return;
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      repeatOptions = [];
+      showRepeatError(typeof data.detail === 'string' ? data.detail : 'That repeat pattern is invalid.');
+      return;
+    }
+    repeatOptions = data.interpretations;
+    renderRepeat();
+  } catch (_) {
+    if (seq === repeatSeq) showRepeatError('Couldn’t check the repeat pattern. Are you offline?');
+  }
+}
+
+function showRepeatError(msg) {
+  const box = $('repeat-preview');
+  box.className = 'repeat-preview error';
+  box.textContent = msg;
+  box.style.display = 'block';
+  setDueLocked(null);
+}
+
+function renderRepeat() {
+  const opt = repeatOptions[repeatChoice];
+  const other = repeatOptions.length > 1 ? repeatOptions[(repeatChoice + 1) % repeatOptions.length] : null;
+  const box = $('repeat-preview');
+  box.className = 'repeat-preview';
+  box.innerHTML = `
+    <div class="repeat-summary">↻ ${esc(opt.summary)}</div>
+    <ul class="repeat-dates">${opt.occurrences.map(o => `<li>${esc(o.label)}</li>`).join('')}</ul>
+    ${opt.warnings.map(w => `<div class="repeat-warn">${esc(w)}</div>`).join('')}
+    ${other ? `<button type="button" class="repeat-alt" onclick="switchRepeat()">Did you mean: ${esc(other.summary.split(' at ')[0])}?</button>` : ''}`;
+  box.style.display = 'block';
+  setDueLocked(opt.first);
+}
+
+function switchRepeat() {
+  repeatChoice = (repeatChoice + 1) % repeatOptions.length;
+  renderRepeat();
+}
+
+function setDueLocked(first) {
+  const due = $('due_date');
+  if (first) {
+    due.value = first; due.readOnly = true; due.classList.add('locked');
+    due.title = 'Set by the repeat pattern';
+  } else if (due.readOnly) {
+    due.value = ''; due.readOnly = false; due.classList.remove('locked'); due.title = '';
+  }
+}
+
+function shortRepeat(summary) {
+  return summary.split(' at ')[0];
+}
+
 /* ── Init ────────────────────────────────────────────────────── */
+$('tz-label').textContent = `(${TZ})`;
 fetchMe();
 fetchProfile();
 fetchTasks();

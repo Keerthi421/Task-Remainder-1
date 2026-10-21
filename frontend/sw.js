@@ -1,8 +1,9 @@
-const CACHE = 'task-reminder-v2';
+const CACHE = 'task-reminder-v3';
 const STATIC_ASSETS = [
   '/static/style.css',
   '/static/script.js',
   '/login',
+  '/app',
   '/',
 ];
 
@@ -20,23 +21,15 @@ self.addEventListener('activate', e => {
   );
 });
 
+// Network-first so new deploys show up immediately; the cache is only an offline fallback.
 self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
-  // Network-first for API calls
-  if (['/tasks', '/users', '/templates', '/token', '/register'].some(p => url.pathname.startsWith(p))) {
-    e.respondWith(
-      fetch(e.request)
-        .then(r => { const c = r.clone(); caches.open(CACHE).then(cache => cache.put(e.request, c)); return r; })
-        .catch(() => caches.match(e.request))
-    );
-    return;
-  }
-  // Cache-first for static
+  if (e.request.method !== 'GET') return;
   e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request).then(resp => {
-      const c = resp.clone();
-      caches.open(CACHE).then(cache => cache.put(e.request, c));
-      return resp;
-    }))
+    fetch(e.request)
+      .then(r => {
+        if (r.ok) { const c = r.clone(); caches.open(CACHE).then(cache => cache.put(e.request, c)); }
+        return r;
+      })
+      .catch(() => caches.match(e.request))
   );
 });

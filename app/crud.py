@@ -2,7 +2,7 @@ import json
 import secrets
 from datetime import datetime, date
 from sqlalchemy.orm import Session
-from . import models, schemas
+from . import models, schemas, recurrence
 from .auth import get_password_hash
 import pytz
 
@@ -97,16 +97,29 @@ def update_profile(db: Session, email: str, upd: schemas.ProfileUpdate) -> schem
 # ── Tasks ─────────────────────────────────────────────────────────────────────
 
 def create_task(db: Session, task: schemas.TaskCreate, user_email: str) -> models.Task:
+    """Raises recurrence.RecurrenceError if recurrence_text can't be scheduled."""
+    tz_name = task.timezone or recurrence.DEFAULT_TZ
+    due_date, rule, summary = task.due_date, None, None
+    if task.recurrence_text and task.recurrence_text.strip():
+        options = recurrence.parse(task.recurrence_text, tz_name)
+        if task.recurrence_choice >= len(options):
+            raise recurrence.RecurrenceError("That reading of the repeat pattern is no longer available.")
+        chosen = options[task.recurrence_choice]
+        due_date, rule, summary = chosen.first, chosen.rule_str, chosen.summary
     db_task = models.Task(
         title=task.title,
         description=task.description,
-        due_date=task.due_date,
+        due_date=due_date,
         priority=task.priority,
         user_email=user_email,
         tags=task.tags,
         reminder_minutes=_rm_to_str(task.reminder_minutes),
         sub_tasks=json.dumps(task.sub_tasks),
         assigned_to=task.assigned_to,
+        notification_email=task.notification_email,
+        timezone=tz_name,
+        recurrence_rule=rule,
+        recurrence_summary=summary,
     )
     db.add(db_task)
     db.commit()
@@ -141,9 +154,34 @@ def update_task(db: Session, task_id: int, upd: schemas.TaskUpdate,
     # Award points when marked complete
     if was_pending and task.status == "completed":
         award_points(db, user_email, 10)
+        if task.recurrence_rule:
+            # Completing a recurring task completes this occurrence only.
+            now_local = recurrence.now_in(recurrence.get_tz(task.timezone))
+            advance_recurring(task, after=max(task.due_date, now_local))
     db.commit()
     db.refresh(task)
     return task
+
+
+def advance_recurring(task: models.Task, after: datetime) -> bool:
+    """Move a recurring task to its first occurrence after `after` (naive wall time in the task's zone).
+
+    Returns False, and marks the task completed, when the series has no more occurrences.
+    """
+    nxt = recurrence.next_occurrence(task.recurrence_rule, after)
+    if nxt is None:
+        task.status = "completed"
+        return False
+    task.due_date = nxt
+    task.status = "pending"
+    task.reminders_sent = ""
+    task.retry_count = 0
+    try:
+        subs = json.loads(task.sub_tasks or "[]")
+        task.sub_tasks = json.dumps([{**s, "done": False} for s in subs])
+    except (ValueError, TypeError):
+        pass
+    return True
 
 def delete_task(db: Session, task_id: int, user_email: str) -> bool:
     task = get_task(db, task_id, user_email)
