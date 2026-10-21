@@ -93,6 +93,30 @@ def login_for_access_token(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+@app.get("/reset-password")
+def reset_password_page():
+    return FileResponse("frontend/reset-password.html")
+
+@app.post("/auth/forgot-password")
+def forgot_password(req: schemas.ForgotPasswordRequest, request: Request,
+                    db: Session = Depends(get_db)):
+    """Send a password-reset email. Always returns 200 to avoid user enumeration."""
+    from .email_utils import send_reset_email
+    token = crud.create_reset_token(db, req.email)
+    if token:
+        base = str(request.base_url).rstrip("/")
+        link = f"{base}/reset-password?token={token}"
+        send_reset_email(req.email, link)
+    # Return 200 regardless so we don't leak whether the email exists
+    return {"message": "If that email is registered, a reset link has been sent."}
+
+@app.post("/auth/reset-password")
+def reset_password(req: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
+    ok = crud.reset_password_with_token(db, req.token, req.password)
+    if not ok:
+        raise HTTPException(400, "Invalid or expired reset link. Please request a new one.")
+    return {"message": "Password updated. You can now sign in."}
+
 @app.get("/users/count")
 def count_users(db: Session = Depends(get_db)):
     return {"count": crud.get_user_count(db)}

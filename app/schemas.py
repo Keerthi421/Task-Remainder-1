@@ -38,15 +38,18 @@ class TaskCreate(BaseModel):
     validate_tz = field_validator("timezone")(_check_tz)
 
 class TaskUpdate(BaseModel):
-    title:       str | None      = Field(default=None, min_length=1, max_length=200)
-    description: str | None      = Field(default=None, max_length=2000)
-    due_date:    datetime | None = None
-    priority:    Priority | None = None
-    status:      Status | None   = None
-    tags:        str | None      = None
-    sort_order:  int | None      = None
-    sub_tasks:   list[dict] | None = None
-    assigned_to: str | None      = None
+    title:              str | None       = Field(default=None, min_length=1, max_length=200)
+    description:        str | None       = Field(default=None, max_length=2000)
+    due_date:           datetime | None  = None
+    priority:           Priority | None  = None
+    status:             Status | None    = None
+    tags:               str | None       = None
+    sort_order:         int | None       = None
+    sub_tasks:          list[dict] | None = None
+    assigned_to:        str | None       = None
+    notification_email: str | None       = None
+    timezone:           str | None       = None
+    reminder_minutes:   list[int] | None = None
 
 class TaskOut(BaseModel):
     id:               int
@@ -124,6 +127,13 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: str | None = None
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token:    str
+    password: str = Field(min_length=6, max_length=128)
 
 # ── Profile / Stats ───────────────────────────────────────────────────────────
 

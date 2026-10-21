@@ -127,6 +127,36 @@ def send_reminder_email(task, task_time_str: str, now_str: str,
     return send_email(to, subject, plain, html)
 
 
+# ── Password reset email ───────────────────────────────────────────────────────
+
+def send_reset_email(to_email: str, reset_link: str) -> bool:
+    subject = "🔑 Reset your Task Reminder password"
+    html = f"""<!DOCTYPE html>
+<html><body style='margin:0;padding:0;background:#f4f4f5;font-family:Inter,Arial,sans-serif;'>
+<div style='max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;
+            box-shadow:0 4px 20px rgba(0,0,0,.08);'>
+  <div style='background:#080808;padding:32px 40px;'>
+    <p style='margin:0;font-size:12px;font-weight:700;letter-spacing:2px;color:rgba(245,245,245,.5);
+              text-transform:uppercase;'>Task Reminder</p>
+    <h1 style='margin:12px 0 0;font-size:26px;font-weight:900;color:#f5f5f5;letter-spacing:-1px;'>
+      Reset your password.</h1>
+  </div>
+  <div style='padding:32px 40px;'>
+    <p style='font-size:15px;color:#444;line-height:1.6;margin:0 0 24px;'>
+      We received a request to reset the password for <strong>{escape(to_email)}</strong>.
+      Click the button below to choose a new password. This link expires in <strong>1 hour</strong>.</p>
+    <a href='{reset_link}' style='display:inline-block;background:#080808;color:#f5f5f5;
+       text-decoration:none;font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+       padding:14px 32px;border-radius:8px;'>Reset Password →</a>
+    <p style='margin:24px 0 0;font-size:12px;color:#bbb;'>
+      If you didn't request this, you can safely ignore this email. Your password won't change.</p>
+  </div>
+</div>
+</body></html>"""
+    plain = f"Reset your Task Reminder password\n\nClick this link (expires in 1 hour):\n{reset_link}\n\nIf you didn't request this, ignore this email."
+    return send_email(to_email, subject, plain, html)
+
+
 # ── Weekly digest ──────────────────────────────────────────────────────────────
 
 def send_weekly_digest(to_email: str, completed: list, upcoming: list):

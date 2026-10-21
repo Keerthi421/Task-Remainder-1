@@ -42,3 +42,16 @@ def run_migrations(eng):
                 conn.commit()
             except Exception:
                 pass  # column already exists
+
+    # Migrate users table
+    new_user_cols = [
+        ("reset_token",         "TEXT"),
+        ("reset_token_expires", "DATETIME"),
+    ]
+    with eng.connect() as conn:
+        for col, definition in new_user_cols:
+            try:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {definition}"))
+                conn.commit()
+            except Exception:
+                pass  # column already exists

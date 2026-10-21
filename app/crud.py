@@ -44,6 +44,32 @@ def create_user(db: Session, user: schemas.UserCreate):
     db.refresh(db_user)
     return db_user
 
+def create_reset_token(db: Session, email: str) -> str | None:
+    """Generate a password-reset token valid for 1 hour. Returns None if email not found."""
+    from datetime import timedelta
+    import secrets
+    user = get_user_by_email(db, email)
+    if not user:
+        return None
+    token = secrets.token_urlsafe(32)
+    user.reset_token         = token
+    user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+    db.commit()
+    return token
+
+def reset_password_with_token(db: Session, token: str, new_password: str) -> bool:
+    """Apply new password if the token exists and hasn't expired. Returns True on success."""
+    user = db.query(models.User).filter(models.User.reset_token == token).first()
+    if not user or not user.reset_token_expires:
+        return False
+    if datetime.utcnow() > user.reset_token_expires:
+        return False  # expired
+    user.hashed_password     = get_password_hash(new_password)
+    user.reset_token         = None
+    user.reset_token_expires = None
+    db.commit()
+    return True
+
 # ── Profile ───────────────────────────────────────────────────────────────────
 
 def get_or_create_profile(db: Session, email: str) -> models.UserProfile:
@@ -148,6 +174,8 @@ def update_task(db: Session, task_id: int, upd: schemas.TaskUpdate,
     data = upd.model_dump(exclude_unset=True)
     if "sub_tasks" in data and isinstance(data["sub_tasks"], list):
         data["sub_tasks"] = json.dumps(data["sub_tasks"])
+    if "reminder_minutes" in data and isinstance(data["reminder_minutes"], list):
+        data["reminder_minutes"] = _rm_to_str(data["reminder_minutes"])
     was_pending = task.status == "pending"
     for k, v in data.items():
         setattr(task, k, v)

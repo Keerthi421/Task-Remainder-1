@@ -13,3 +13,4 @@ requests
 python-multipart
 anthropic
 python-dateutil
+psycopg2-binary

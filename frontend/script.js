@@ -347,6 +347,7 @@ function renderTasks() {
       <div class="task-actions">
         <button class="icon-btn" title="${task.status==='pending'?'Mark complete':'Mark pending'}"
           onclick="toggleStatus(${task.id},'${task.status==='pending'?'completed':'pending'}')">${task.status==='pending'?'✔':'↺'}</button>
+        <button class="icon-btn edit" title="Edit" onclick="openEditModal(${task.id})">✎</button>
         <button class="icon-btn share" title="Share link" onclick="shareTask(${task.id})">🔗</button>
         <button class="icon-btn delete" title="Delete" onclick="deleteTask(${task.id})">✕</button>
       </div>
@@ -610,6 +611,69 @@ function setDueLocked(first) {
 function shortRepeat(summary) {
   return summary.split(' at ')[0];
 }
+
+/* ── Edit modal ──────────────────────────────────────────────── */
+let editingTaskId = null;
+
+function openEditModal(id) {
+  const task = allTasks.find(t => t.id === id);
+  if (!task) return;
+  editingTaskId = id;
+
+  $('edit-title').value              = task.title || '';
+  $('edit-description').value        = task.description || '';
+  $('edit-due-date').value           = task.due_date ? task.due_date.slice(0, 16) : '';
+  $('edit-priority').value           = task.priority || 'low';
+  $('edit-tags').value               = task.tags || '';
+  $('edit-notification-email').value = task.notification_email || '';
+  $('edit-assigned-to').value        = task.assigned_to || '';
+
+  // Reminder chips
+  const mins = (task.reminder_minutes || '0').split(',').map(Number);
+  document.querySelectorAll('.edit-rc input').forEach(cb => {
+    cb.checked = mins.includes(Number(cb.value));
+    cb.closest('.edit-rc').classList.toggle('active', cb.checked);
+  });
+
+  $('edit-modal').style.display = 'flex';
+}
+
+function closeEditModal(e) {
+  if (!e || e.target === $('edit-modal')) {
+    $('edit-modal').style.display = 'none';
+    editingTaskId = null;
+  }
+}
+
+$('edit-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!editingTaskId) return;
+  const mins = [...document.querySelectorAll('.edit-rc input:checked')].map(cb => Number(cb.value));
+  const body = {
+    title:              $('edit-title').value,
+    description:        $('edit-description').value,
+    due_date:           $('edit-due-date').value,
+    priority:           $('edit-priority').value,
+    tags:               $('edit-tags').value,
+    notification_email: $('edit-notification-email').value || null,
+    assigned_to:        $('edit-assigned-to').value || null,
+    reminder_minutes:   mins.length ? mins : [0],
+  };
+  try {
+    const r = await fetch(`${API}/tasks/${editingTaskId}`, {
+      method: 'PATCH', headers: hdr(), body: JSON.stringify(body)
+    });
+    if (r.ok) {
+      notify('✓ Task updated.');
+      $('edit-modal').style.display = 'none';
+      editingTaskId = null;
+      fetchTasks();
+    } else {
+      const err = await r.json().catch(() => ({ detail: 'Failed' }));
+      notify('Error: ' + (err.detail || 'Failed'));
+    }
+  } catch(_) { notify('Network error.'); }
+});
 
 /* ── Init ────────────────────────────────────────────────────── */
 $('tz-label').textContent = `(${TZ})`;
