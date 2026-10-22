@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    { "source": "/token",                  "destination": "https://RENDER_URL/token" },
+    { "source": "/register",               "destination": "https://RENDER_URL/register" },
+    { "source": "/users/:path*",           "destination": "https://RENDER_URL/users/:path*" },
+    { "source": "/tasks/:path*",           "destination": "https://RENDER_URL/tasks/:path*" },
+    { "source": "/tasks",                  "destination": "https://RENDER_URL/tasks" },
+    { "source": "/templates/:path*",       "destination": "https://RENDER_URL/templates/:path*" },
+    { "source": "/templates",              "destination": "https://RENDER_URL/templates" },
+    { "source": "/auth/:path*",            "destination": "https://RENDER_URL/auth/:path*" },
+    { "source": "/push/:path*",            "destination": "https://RENDER_URL/push/:path*" },
+    { "source": "/scheduler-status",       "destination": "https://RENDER_URL/scheduler-status" },
+    { "source": "/login",                  "destination": "/login.html" },
+    { "source": "/app",                    "destination": "/index.html" },
+    { "source": "/reset-password",         "destination": "/reset-password.html" },
+    { "source": "/manifest.json",          "destination": "/manifest.json" },
+    { "source": "/sw.js",                  "destination": "/sw.js" },
+    { "source": "/",                       "destination": "/landing.html" }
+  ]
+}
